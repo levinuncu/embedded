@@ -4,9 +4,25 @@
 #include "esp_log.h"
 #include "esp_rom_sys.h"
 #include "esp_timer.h"
+#include <stdint.h>
 
 static const char *TAG = "DHT11";
 static int s_dht_pin = -1;
+
+#define DHT11_RESPONSE_TIMEOUT_US 200
+#define DHT11_BIT_START_TIMEOUT_US 100
+#define DHT11_BIT_HIGH_TIMEOUT_US 100
+
+/* Timer, der Timeouts für DHT11-Operationen verwaltet -> kein ewiges Polling */
+static bool dht11_wait_for_level(int level, int timeout_us) {
+    int64_t start = esp_timer_get_time();
+    while (gpio_get_level(s_dht_pin) != level) {
+        if ((esp_timer_get_time() - start) > timeout_us) {
+            return false;
+        }
+    }
+    return true;
+}
 
 // Initialisiert den Temperatursensor, indem er den Pin zuordnet und Datenrichtung und
 // Standardsignal setzt.
@@ -28,23 +44,34 @@ static void dht11_start_signal(void) {
 
 // Liest ein Bit aus dem DHT11 aus. Ein HIGH-Signal über 40µs gilt als 1, darunter als 0.
 static int dht11_read_bit(void) {
-    while (gpio_get_level(s_dht_pin) == 0) {
+    if (!dht11_wait_for_level(1, DHT11_BIT_START_TIMEOUT_US)) {
+        return -1;
     }
-    int start = esp_timer_get_time();
-    while (gpio_get_level(s_dht_pin) == 1) {
+
+    int64_t start = esp_timer_get_time();
+    if (!dht11_wait_for_level(0, DHT11_BIT_HIGH_TIMEOUT_US)) {
+        return -1;
     }
-    int duration = esp_timer_get_time() - start;
+
+    int64_t duration = esp_timer_get_time() - start;
     return (duration > 40) ? 1 : 0;
 }
 
 // Um ein Byte zu lesen, wird 8 Mal ein Bit gelesen.
-static int dht11_read_byte(void) {
+static bool dht11_read_byte(int *byte_out) {
     int byte = 0;
     for (int i = 0; i < 8; i++) {
+        int bit = dht11_read_bit();
+        if (bit < 0) {
+            // Fehler beim Lesen eines Bits z.B. Timeout, daher wird die Funktion mit false zurückgegeben
+            return false;
+        }
         byte <<= 1;
-        byte |= dht11_read_bit();
+        byte |= bit;
     }
-    return byte;
+
+    *byte_out = byte;
+    return true;
 }
 
 // Gibt false zurück, wenn: 
@@ -62,19 +89,23 @@ bool dht11_read(dht11_measurement_t *reading) {
 
     // ESP wartet auf die Antwort des DHT11 in Form von LOW ("response signal"), HIGH ("preparation 
     // for sending data"), LOW ("50µs begin of data transmission")
-    while (gpio_get_level(s_dht_pin) == 1) {
-    }
-    while (gpio_get_level(s_dht_pin) == 0) {
-    }
-    while (gpio_get_level(s_dht_pin) == 1) {
+    if (!dht11_wait_for_level(0, DHT11_RESPONSE_TIMEOUT_US) ||
+        !dht11_wait_for_level(1, DHT11_RESPONSE_TIMEOUT_US) ||
+        !dht11_wait_for_level(0, DHT11_RESPONSE_TIMEOUT_US)) {
+        ESP_LOGW(TAG, "Sensor response timeout");
+        return false;
     }
 
     // Lesen von 5 * 8 Bit für vollständigen Datensatz
-    reading->humidity_int = dht11_read_byte();
-    reading->humidity_dec = dht11_read_byte();
-    reading->temperature_int = dht11_read_byte();
-    reading->temperature_dec = dht11_read_byte();
-    int checksum = dht11_read_byte();
+    int checksum;
+    if (!dht11_read_byte(&reading->humidity_int) ||
+        !dht11_read_byte(&reading->humidity_dec) ||
+        !dht11_read_byte(&reading->temperature_int) ||
+        !dht11_read_byte(&reading->temperature_dec) ||
+        !dht11_read_byte(&checksum)) {
+        ESP_LOGW(TAG, "Timed out while reading sensor data");
+        return false;
+    }
 
     // Prüfung der Checksum, Error Log wenn inkorrekt
     int sum = reading->humidity_int + reading->humidity_dec + reading->temperature_int + reading->temperature_dec;
