@@ -1,43 +1,47 @@
 #include "ext_i2c.h"
+#include "mpu6050.h"
+#include <stdio.h>
+#include "sdkconfig.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "esp_log.h"
-#include "driver/i2c.h"
+#include "driver/i2c_master.h"
 
 static const char *TAG = "EXT_I2C";
 
-esp_err_t i2c_init(int sda_pin, int scl_pin)
+/* Initialisiert den I2C-Bus mit den übergebenen Pins und gibt die definierten Handles für Bus und Gerät zurück. 
+*   Intern wird ein neuer Master-Bus initialisiert und das MPU6050-Gerät mit der Adresse 0x68 zum Bus hinzugefügt.
+*/
+static void i2c_master_init(i2c_master_bus_handle_t *bus_handle, i2c_master_dev_handle_t *dev_handle, int sda_pin, int scl_pin)
 {
     if (sda_pin < 0 || scl_pin < 0) {
         ESP_LOGE(TAG, "Invalid I2C pin numbers: SDA=%d, SCL=%d", sda_pin, scl_pin);
-        return ESP_ERR_INVALID_ARG;
+        return;
     }
 
-    i2c_config_t conf = {
-        .mode = I2C_MODE_MASTER,
-        .sda_io_num = sda_pin,
-        .sda_pullup_en = GPIO_PULLUP_DISABLE,
+    i2c_master_bus_config_t i2c_bus_config = {
+        .i2c_port = I2C_NUM_0,              // Dem I2C-Bus stehen 2 Ports zur Verfügung: I2C_NUM_0 und I2C_NUM_1. Hier wird I2C_NUM_0 verwendet.
+        .sda_io_num = sda_pin,          
         .scl_io_num = scl_pin,
-        .scl_pullup_en = GPIO_PULLUP_DISABLE,
-        .master.clk_speed = 100000,
-        .clk_flags = 0,
+        .clk_source = I2C_CLK_SRC_DEFAULT,  // Nimmt die Standard-Clockquelle
+        .glitch_ignore_cnt = 0              // Keine Glitch-Filterung, die Störungen auf der Leitungen filtern könnte
     };
 
-    esp_err_t err = i2c_param_config(I2C_NUM_0, &conf);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "i2c_param_config failed: %s", esp_err_to_name(err));
-        return err;
-    }
+    ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_config, bus_handle));
+    ESP_LOGI(TAG, "I2C bus created (SDA=%d, SCL=%d)", sda_pin, scl_pin);
 
-    err = i2c_driver_install(I2C_NUM_0, conf.mode, 0, 0, 0);
-    if (err == ESP_ERR_INVALID_STATE) {
-        // Driver already installed, this is fine for repeated init calls.
-        ESP_LOGW(TAG, "I2C driver already installed on port %d", I2C_NUM_0);
-        return ESP_OK;
-    }
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "i2c_driver_install failed: %s", esp_err_to_name(err));
-        return err;
-    }
+    i2c_device_config_t mpu6050_dev_cfg = {
+        .device_address = 0x68,            // I2C-Adresse des MPU6050, die üblicherweise 0x68 ist, wenn AD0-Pin auf GND liegt 
+        .scl_speed_hz = 100000,             // I2C-Geschwindigkeit von 100 kHz
+    };
 
+    ESP_ERROR_CHECK(i2c_master_bus_add_device(*bus_handle, &mpu6050_dev_cfg, dev_handle));
+    ESP_LOGI(TAG, "MPU6050 device added to I2C bus at address 0x68");
+}
+
+/* Vereinfachte Schnittstelle für die Main-Funktion: Initialisiert den I2C-Bus und fügt ein MPU6050-Gerät hinzu */
+void i2c_init(int sda_pin, int scl_pin, i2c_master_bus_handle_t *bus_handle, i2c_master_dev_handle_t *dev_handle)
+{
+    i2c_master_init(bus_handle, dev_handle, sda_pin, scl_pin);
     ESP_LOGI(TAG, "I2C initialized successfully");
-    return ESP_OK;
 }

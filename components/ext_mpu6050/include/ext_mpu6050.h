@@ -3,7 +3,11 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-// MPU6050 Sensor Daten
+/* Eigene MPU6050 Schnittstelle für das Auslesen von Sensordaten
+*   stützt sich intern auf I2C und die MPU6050-Bibliothek von Espressif 
+*/
+
+/* MPU6050 Sensor Datenstruktur */
 typedef struct {
     int x_gyro;
     int y_gyro;

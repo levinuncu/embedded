@@ -37,7 +37,14 @@ sdkconfig
 /components/.idf/
 **/components/.idf/
 # For modern ESP-IDF component manager
-managed_components/
+managed_components/*
+!managed_components/espressif__mpu6050/
+managed_components/espressif__mpu6050/**
+!managed_components/espressif__mpu6050/**/
+!managed_components/espressif__mpu6050/**/*.c
+!managed_components/espressif__mpu6050/**/*.h
+!managed_components/espressif__mpu6050/**/CMakeLists.txt
+!managed_components/espressif__mpu6050/idf_component.yml
 # If ESP-IDF tools are installed/referenced locally to the project
 .espressif/
 
