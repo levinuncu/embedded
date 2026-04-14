@@ -1,5 +1,6 @@
 #include "dht11.h"
 #include "ble.h"
+#include "ext_i2c.h"
 #include "ext_mpu6050.h"
 
 #include <stdio.h>
@@ -7,16 +8,39 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
+#include "esp_err.h"
 #include "driver/gpio.h"
 
 static const char *TAG = "APP_MAIN";
 
 /* Main-Funktion meiner Testanwendung*/
 void app_main() {
+    i2c_master_bus_handle_t i2c_bus = NULL;
+    i2c_master_dev_handle_t mpu6050_dev = NULL;
+    i2c_master_dev_handle_t gnss_dev = NULL;
+
     /* Initialisierung der Sensoren und BLE-Kommunikation */
-    dht11_init(10);
     ble_init();
-    mpu6050_init(6, 7);
+    dht11_init(10);
+
+    if (i2c_bus_init(6, 7, &i2c_bus) != ESP_OK) {
+        ESP_LOGE(TAG, "I2C bus init failed");
+        return;
+    }
+
+    if (i2c_add_device(i2c_bus, 0x68, 100000, &mpu6050_dev) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to add MPU6050 device");
+        return;
+    }
+
+    mpu6050_init_with_device(mpu6050_dev);
+
+    if (i2c_add_device(i2c_bus, 0x42, 100000, &gnss_dev) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to add GNSS device");
+        return;
+    }
+
+    ESP_LOGI(TAG, "I2C devices initialized: MPU6050 (0x68), GNSS (0x42)");
 
     while (1) {
         /* Lesen der Sensordaten */

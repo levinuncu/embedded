@@ -1,28 +1,22 @@
 #include "ext_mpu6050.h"
-#include "ext_i2c.h"
 #include "esp_log.h"
 #include "mpu6050.h"
 
 static const char *TAG = "MPU6050";
 
-static i2c_master_bus_handle_t s_bus = NULL;
 static i2c_master_dev_handle_t s_dev = NULL;
 static mpu6050_handle_t sensor_handle = NULL;
 static bool s_ready = false;
 
-/* Vereinfachte Schnittstelle für die Main-Funktion: MPU6050 Handling */
-
-/* Initialisiert I2C mit den übergebenen I2C-Pins, weckt und initialisiert das MPU6050-Gerät */
-void mpu6050_init(int sda_pin, int scl_pin)
+/* Initialisiert den MPU6050 mit einem gegebenen I2C-Gerätehandle und weckt ihn auf */
+void mpu6050_init_with_device(i2c_master_dev_handle_t dev_handle)
 {
-    /* I2C Init */
-    i2c_init(sda_pin, scl_pin, &s_bus, &s_dev);
-    if (s_dev == NULL) {
-        ESP_LOGE(TAG, "I2C init failed");
+    if (dev_handle == NULL) {
+        ESP_LOGE(TAG, "Invalid I2C device handle");
         return;
     }
 
-    /* MPU6050 Init */
+    s_dev = dev_handle;
     sensor_handle = mpu6050_create(s_dev, 0x68);
     if (sensor_handle == NULL) {
         ESP_LOGE(TAG, "mpu6050_create failed");
