@@ -20,7 +20,7 @@ $GPGSV	// GPS: Anzahl der Nachrichten, Nachrichtennummer, Anzahl der sichtbaren 
 $GLGSV	// GLONASS: Anzahl der Nachrichten, Nachrichtennummer, Anzahl der sichtbaren Satelliten, Informationen zu Satelliten (ID, Elevation, Azimuth, SNR)
 $GPGLL	// Latitude, N/S, Longitude, E/W, Zeit, Status (A=aktiv, V=ungültig)
 $GPTXT	// Textnachricht, Anzahl der Nachrichten, Nachrichtennummer, Text
-$GPRMC  // Minimal Data: Zeit, Status (A=aktiv, V=ungültig), Latitude, N/S, Longitude, E/W, Geschwindigkeit über Grund (Knoten), Kurs über Grund (Grad), Datum, Magnetische Variation, E/W, Prüfsumme
+$GPRMC/ $GNRMC  // Minimal Data: Zeit, Status (A=aktiv, V=ungültig), Latitude, N/S, Longitude, E/W, Geschwindigkeit über Grund (Knoten), Kurs über Grund (Grad), Datum, Magnetische Variation, E/W, Prüfsumme
 */
 
 /* Zeitstruktur */
@@ -34,9 +34,9 @@ typedef struct {
 } date_time_t;
 
 typedef struct {
-	int32_t lat;
+	double lat;
 	char lat_dir; // N/S
-	int32_t lon;
+	double lon;
 	char lon_dir; // E/W
 } gnss_position_t;
 
@@ -45,11 +45,11 @@ typedef struct {
 	char status; 			// A=aktiv, V=ungültig
 	date_time_t datetime;
 	gnss_position_t position;
-	int32_t speed; 			// Geschwindigkeit über Grund (Knoten)
-	int32_t course; 		// Kurs über Grund (Grad)
+	double speed; 			// Geschwindigkeit über Grund (Knoten)
+	double course; 		// Kurs über Grund (Grad)
 } gnss_measurement_t;
 
 esp_err_t gnss_uart_init(int tx_pin, int rx_pin);
 bool gnss_read_measurement(gnss_measurement_t *measurement);
-esp_err_t get_gprmc_sentence(const char *nmea_strings, char *sentence);
-esp_err_t parse_gprmc_sentence(const char *sentence, gnss_measurement_t *measurement);
+esp_err_t get_gnrmc_sentence(const char *nmea_strings, char *sentence);
+esp_err_t parse_gnrmc_sentence(const char *sentence, gnss_measurement_t *measurement);

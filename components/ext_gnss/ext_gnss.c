@@ -41,7 +41,7 @@ esp_err_t gnss_uart_init(int tx_pin, int rx_pin){
     return ESP_OK;
 }
 
-/* Liest die GNSS-Messwerte aus und parst die Informationen aus dem NMEA-String (hier $GPRMC) */
+/* Liest die GNSS-Messwerte aus und parst die Informationen aus dem NMEA-String (hier $GNRMC) */
 bool gnss_read_measurement(gnss_measurement_t *measurement){
     uint8_t *data = (uint8_t *) malloc(BUF_SIZE);
     int len = uart_read_bytes(UART_PORT_NUM, data, (BUF_SIZE - 1), 20 / portTICK_PERIOD_MS);
@@ -52,21 +52,21 @@ bool gnss_read_measurement(gnss_measurement_t *measurement){
     data[len] = '\0';
 
     /* Datenverarbeitung, Parsen der NMEA-Strings */
-    if (parse_gprmc_sentence((char *)data, measurement) == ESP_OK) {
+    if (parse_gnrmc_sentence((char *)data, measurement) == ESP_OK) {
         free(data);
         return true;
     } else {
-        ESP_LOGW(TAG, "GPRMC sentence not found");
+        ESP_LOGW(TAG, "GNRMC sentence not found");
     }
 
     free(data);
     return false;
 }
 
-/* Extrahiert die $GPRMC-Nachricht aus den NMEA-Strings */
-esp_err_t get_gprmc_sentence(const char *nmea_strings, char *sentence) {
-    /* Sucht nach der $GPRMC-Nachricht */
-    const char *start = strstr(nmea_strings, "$GPRMC,");
+/* Extrahiert die $GNRMC-Nachricht aus den NMEA-Strings */
+esp_err_t get_gnrmc_sentence(const char *nmea_strings, char *sentence) {
+    /* Sucht nach der $GNRMC-Nachricht */
+    const char *start = strstr(nmea_strings, "$GNRMC,");
     if (start == NULL) {
         return ESP_ERR_NOT_FOUND;
     }
@@ -78,7 +78,7 @@ esp_err_t get_gprmc_sentence(const char *nmea_strings, char *sentence) {
     }
 
     /* Extrahiert die Nachricht ohne Prüfsumme */
-    const char *payload_start = start + strlen("$GPRMC,");
+    const char *payload_start = start + strlen("$GNRMC,");
     size_t payload_len = (size_t)(chksm - payload_start);
     if (payload_len + 4 > 128) {
         return ESP_ERR_NO_MEM;
@@ -92,11 +92,11 @@ esp_err_t get_gprmc_sentence(const char *nmea_strings, char *sentence) {
     return ESP_OK;
 }
 
-/* Parst die $GPRMC-Nachricht und extrahiert die Messwerte */
-esp_err_t parse_gprmc_sentence(const char *nmea_strings, gnss_measurement_t *measurement) {
-    /* Extrahiert die $GPRMC-Nachricht */
+/* Parst die $GNRMC-Nachricht und extrahiert die Messwerte */
+esp_err_t parse_gnrmc_sentence(const char *nmea_strings, gnss_measurement_t *measurement) {
+    /* Extrahiert die $GNRMC-Nachricht */
     char sentence[128];
-    if (get_gprmc_sentence(nmea_strings, sentence) != ESP_OK) {
+    if (get_gnrmc_sentence(nmea_strings, sentence) != ESP_OK) {
         return ESP_ERR_NOT_FOUND;
     }
 
@@ -119,13 +119,13 @@ esp_err_t parse_gprmc_sentence(const char *nmea_strings, gnss_measurement_t *mea
                 measurement->status = token[0];
                 break;
             case 3: // Latitude
-                measurement->position.lat = (int32_t)strtod(token, NULL);
+                measurement->position.lat = strtod(token, NULL);
                 break;
             case 4: // N/S
                 measurement->position.lat_dir = token[0];
                 break;
             case 5: // Longitude
-                measurement->position.lon = (int32_t)strtod(token, NULL);
+                measurement->position.lon = strtod(token, NULL);
                 break;
             case 6: // E/W
                 measurement->position.lon_dir = token[0];

@@ -13,9 +13,9 @@ typedef struct {
 } packet_date_time_t;
 
 typedef struct {
-    int32_t lat;
+    double lat;
     char lat_dir;
-    int32_t lon;
+    double lon;
     char lon_dir;
 } packet_gnss_position_t;
 
@@ -31,11 +31,11 @@ typedef struct {
 struct sensor_packet_t {
     float temperature;
     float humidity;
-    int x_gyro;
-    int y_gyro;
-    int z_gyro;
-    int x_accel;
-    int y_accel;
-    int z_accel;
+    float x_gyro;
+    float y_gyro;
+    float z_gyro;
+    float x_accel;
+    float y_accel;
+    float z_accel;
     packet_gnss_measurement_t gnss;
 };

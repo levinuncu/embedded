@@ -95,8 +95,8 @@ void app_main() {
 
         /* Ausgabe der Sensordaten (zu Debugging-Zwecken)*/
         printf("Temperature: %.1f C, Humidity: %.1f %%\n", packet.temperature, packet.humidity);
-        printf("Gyro: (%d, %d, %d), Accel: (%d, %d, %d)\n", packet.x_gyro, packet.y_gyro, packet.z_gyro, packet.x_accel, packet.y_accel, packet.z_accel);
-        printf("GNSS: Lon: %ld%c, Lat: %ld%c, Status: %c\n",
+        printf("Gyro: (%f, %f, %f), Accel: (%f, %f, %f)\n", packet.x_gyro, packet.y_gyro, packet.z_gyro, packet.x_accel, packet.y_accel, packet.z_accel);
+        printf("GNSS: Lon: %.4f%c, Lat: %.4f%c, Status: %c\n",
             packet.gnss.position.lon,
             packet.gnss.position.lon_dir,
             packet.gnss.position.lat,

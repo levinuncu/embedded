@@ -28,6 +28,8 @@ void mpu6050_init_with_device(i2c_master_dev_handle_t dev_handle)
         return;
     }
 
+    mpu6050_config(sensor_handle, ACCE_FS_2G, GYRO_FS_250DPS);
+
     /* Setzt die ready-Flag des Programms für den MPU6050 */
     s_ready = true;
     ESP_LOGI(TAG, "MPU6050 initialized successfully");
