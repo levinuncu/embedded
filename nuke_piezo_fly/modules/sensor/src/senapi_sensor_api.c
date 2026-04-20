@@ -66,6 +66,7 @@ comdef_ReturnCode senapi_ReadSensors(senaty_SensorsReading *const sensors_readin
     return_code = comdef_kNotInitialized;
   } else {
     sensors_reading->temperature = sentem_ReadTemperature();
+    sensors_reading->humidity = 
     sensors_reading->timestamp = 123; // NOLINT(cppcoreguidelines-avoid-magic-numbers, readability-magic-numbers)
   }
 
