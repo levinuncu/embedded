@@ -6,19 +6,18 @@
 #include "sentem_sensor_temperature.h"
 
 #include <stdbool.h>
-#include <stdint.h>
 
 #include "common/comass_common_assert.h"
 #include "common/comdef_common_definitions.h"
-#include "esp_adc/adc_oneshot.h"
-#include "esp_err.h"
-#include "hal/adc_types.h"
+#include "driver/gpio.h"
+#include "esp_log.h"
+#include "esp_rom_sys.h"
+#include "esp_timer.h"
 #include "sensor/sencty_sensor_config_types.h"
 
-#define MILLIVOLTS_PER_VOLT (1000.0F)      ///< Millivolts per volt [mV].
-#define MILLIOHMS_PER_OHM (1000.0F)        ///< Milliohms per ohm [ohm].
-#define ADC_BITWIDTH (12U)                 ///< Bitwidth of the ADC [bits].
-#define ADC_RESOLUTION (2U ^ ADC_BITWIDTH) ///< Resolution of the ADC [steps].
+#define DHT11_RESPONSE_TIMEOUT_US (200)
+#define DHT11_BIT_START_TIMEOUT_US (100)
+#define DHT11_BIT_HIGH_TIMEOUT_US (100)
 
 /**
  * @brief Initialization state of the module.
@@ -26,60 +25,109 @@
 static bool sentem_initialized = false;
 
 /**
- * @brief Temperature sensor configuration.
+ * @brief Tag of the ESP logger.
  */
-static sencty_TemperatureSensorConfiguration sentem_configuration = {0};
+static const char *const kLoggerTag = "DHT11";
 
 /**
- * @brief ADC unit handle.
+ * @brief GPIO pin used for the DHT11 data line.
  */
-static adc_oneshot_unit_handle_t sentem_adc_handle = NULL;
+static int sentem_data_gpio = -1;
+
+static bool dht11_wait_for_level(int level, int timeout_us);
+static void dht11_start_signal(void);
+static int dht11_read_bit(void);
+static bool dht11_read_byte(uint8_t *const byte_out);
 
 void sentem_Init(const sencty_TemperatureSensorConfiguration configuration) {
   comass_AssertTrue(!sentem_initialized, comdef_kAlreadyInitialized);
-  comass_AssertU8InRange((uint8_t)configuration.adc_channel, sencty_kMinTemperatureADCChannel,
-                         sencty_kMaxTemperatureADCChannel, comdef_kInvalidParameter);
 
-  const adc_oneshot_unit_init_cfg_t kADCInitConfig = {
-      .unit_id = ADC_UNIT_1,
-  };
-  comass_AssertTrue(ESP_OK == adc_oneshot_new_unit(&kADCInitConfig, &sentem_adc_handle), comdef_kInternalError);
+  comass_AssertTrue(GPIO_IS_VALID_GPIO(configuration.data_gpio), comdef_kInvalidParameter);
 
-  const adc_oneshot_chan_cfg_t kADCChannelConfig = {
-      .bitwidth = ADC_BITWIDTH,
-      .atten = ADC_ATTEN_DB_12,
-  };
-  comass_AssertTrue(ESP_OK ==
-                        adc_oneshot_config_channel(sentem_adc_handle, configuration.adc_channel, &kADCChannelConfig),
-                    comdef_kInternalError);
+  sentem_data_gpio = (int)configuration.data_gpio;
+  gpio_set_direction((gpio_num_t)sentem_data_gpio, GPIO_MODE_OUTPUT);
+  gpio_set_level((gpio_num_t)sentem_data_gpio, 1);
 
-  sentem_configuration = configuration;
   sentem_initialized = true;
 }
 
-int8_t sentem_ReadTemperature(void) {
+bool sentem_ReadData(dht11_measurement_t *const reading) {
   comass_AssertTrue(sentem_initialized, comdef_kNotInitialized);
-  comass_AssertNotNull(sentem_adc_handle, comdef_kInternalError);
+  comass_AssertNotNull(reading, comdef_kInvalidParameter);
 
-  int8_t temperature = INT8_MIN;
+  dht11_start_signal();
 
-  int raw_value = 0;
-  const esp_err_t kReadResult = adc_oneshot_read(sentem_adc_handle, sentem_configuration.adc_channel, &raw_value);
-  if (kReadResult == ESP_OK) {
-    const float kADCVoltage =
-        ((float)raw_value / ADC_RESOLUTION) * ((float)sentem_configuration.supply_voltage / MILLIVOLTS_PER_VOLT);
+  if (!dht11_wait_for_level(0, DHT11_RESPONSE_TIMEOUT_US) || !dht11_wait_for_level(1, DHT11_RESPONSE_TIMEOUT_US) ||
+      !dht11_wait_for_level(0, DHT11_RESPONSE_TIMEOUT_US)) {
+    ESP_LOGW(kLoggerTag, "Sensor response timeout");
+    return false;
+  }
 
-    const float kResistancePT =
-        (float)sentem_configuration.reference_resistance *
-        (kADCVoltage / (((float)sentem_configuration.supply_voltage / MILLIVOLTS_PER_VOLT) - kADCVoltage));
+  uint8_t humidity_dec = 0U;
+  uint8_t temperature_dec = 0U;
+  uint8_t checksum = 0U;
+  if (!dht11_read_byte(&reading->humidity) || !dht11_read_byte(&humidity_dec) ||
+      !dht11_read_byte(&reading->temperature) || !dht11_read_byte(&temperature_dec) ||
+      !dht11_read_byte(&checksum)) {
+    ESP_LOGW(kLoggerTag, "Timed out while reading sensor data");
+    return false;
+  }
 
-    const float kTemperature = (kResistancePT - (float)sentem_configuration.resistance) /
-                               ((float)sentem_configuration.temperature_coefficient / MILLIOHMS_PER_OHM);
+  const uint8_t kSum = (uint8_t)(reading->humidity + humidity_dec + reading->temperature + temperature_dec);
+  if (kSum != checksum) {
+    ESP_LOGE(kLoggerTag, "Checksum error");
+    return false;
+  }
 
-    if ((kTemperature >= (float)INT8_MIN) && (kTemperature <= (float)INT8_MAX)) {
-      temperature = (int8_t)kTemperature;
+  return true;
+}
+
+static bool dht11_wait_for_level(int level, int timeout_us) {
+  const int64_t kStart = esp_timer_get_time();
+  while (gpio_get_level((gpio_num_t)sentem_data_gpio) != level) {
+    if ((esp_timer_get_time() - kStart) > timeout_us) {
+      return false;
     }
   }
 
-  return temperature;
+  return true;
+}
+
+static void dht11_start_signal(void) {
+  gpio_set_direction((gpio_num_t)sentem_data_gpio, GPIO_MODE_OUTPUT);
+  gpio_set_level((gpio_num_t)sentem_data_gpio, 0);
+  esp_rom_delay_us(18000);
+  gpio_set_level((gpio_num_t)sentem_data_gpio, 1);
+  esp_rom_delay_us(30);
+  gpio_set_direction((gpio_num_t)sentem_data_gpio, GPIO_MODE_INPUT);
+}
+
+static int dht11_read_bit(void) {
+  if (!dht11_wait_for_level(1, DHT11_BIT_START_TIMEOUT_US)) {
+    return -1;
+  }
+
+  const int64_t kStart = esp_timer_get_time();
+  if (!dht11_wait_for_level(0, DHT11_BIT_HIGH_TIMEOUT_US)) {
+    return -1;
+  }
+
+  const int64_t kDuration = esp_timer_get_time() - kStart;
+  return (kDuration > 40) ? 1 : 0;
+}
+
+static bool dht11_read_byte(uint8_t *const byte_out) {
+  uint8_t byte = 0U;
+  for (int bit_index = 0; bit_index < 8; ++bit_index) {
+    const int bit = dht11_read_bit();
+    if (bit < 0) {
+      return false;
+    }
+
+    byte = (uint8_t)(byte << 1);
+    byte = (uint8_t)(byte | (uint8_t)bit);
+  }
+
+  *byte_out = byte;
+  return true;
 }

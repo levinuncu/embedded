@@ -11,5 +11,5 @@ idf_component_register(
         "${CMAKE_SOURCE_DIR}/include"
 
     REQUIRES
-        common sensor storage
+        common sensor storage esp_driver_gpio ext_ble
 )

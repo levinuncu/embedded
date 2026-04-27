@@ -13,37 +13,63 @@
 
 #include <stdint.h>
 
-#include "hal/adc_types.h"
-
 /**
- * @brief Struct for the configuration of a temperature sensor.
+ * @brief Struct for the configuration of a DHT11 temperature sensor.
  */
 typedef struct {
   /**
-   * @brief ADC channel of the sensor.
-   * 
-   * Valid range: ::sencty_kMinTemperatureADCChannel <= value <= ::sencty_kMaxTemperatureADCChannel.
+   * @brief GPIO pin of the DHT11 data line.
    */
-  adc_channel_t adc_channel;
-  /**
-  * @brief Reference resistance of the voltage divider [ohm].
-   */
-  uint16_t reference_resistance;
-  /**
-   * @brief Supply voltage of the voltage divider [mV].
-   * 
-   * Valid range: ::sencty_kMinTemperatureSupplyVoltage <= value <= ::sencty_kMaxTemperatureSupplyVoltage.
-   */
-  uint16_t supply_voltage;
-  /**
-   * @brief Resistance of the resistor at 0°C [ohm].
-   */
-  uint16_t resistance;
-  /**
-   * @brief Temperature coefficient of the resistor [mOhm/°C].
-   */
-  uint16_t temperature_coefficient;
+  uint8_t data_gpio;
 } sencty_TemperatureSensorConfiguration;
+
+/**
+ * @brief Struct for the configuration of an IMU sensor.
+ */
+typedef struct {
+  /**
+    * @brief I2C address of the sensor.
+    */ 
+   uint8_t i2c_address;
+  /**
+   * @brief I2C port of the sensor.
+   */
+  uint8_t i2c_port;
+  /**
+   * @brief I2C SCL GPIO pin of the sensor.
+   */  
+  uint8_t i2c_scl_gpio;
+  /** 
+   * @brief I2C SCL clock speed in Hz.
+   */
+  uint32_t i2c_clock_speed_hz;
+  /**
+   * @brief I2C SDA GPIO pin of the sensor.
+   */  
+  uint8_t i2c_sda_gpio;
+} sencty_IMUSensorConfiguration;
+
+/**
+ * @brief Struct for the configuration of a GNSS sensor.
+ */
+typedef struct {
+  /**
+   * @brief UART port of the GNSS sensor.
+   */
+  uint8_t uart_port;
+  /**
+   * @brief UART TX GPIO pin of the GNSS sensor.
+   */
+  uint8_t uart_tx_gpio;
+  /**
+   * @brief UART RX GPIO pin of the GNSS sensor.
+   */
+  uint8_t uart_rx_gpio;
+  /**
+   * @brief UART baud rate in bit/s.
+   */
+  uint32_t uart_baud_rate_hz;
+} sencty_GNSSSensorConfiguration;
 
 /**
  * @brief Struct for the configuration of all sensors.
@@ -53,27 +79,15 @@ typedef struct {
    * @brief Configuration of a temperature sensor.
    */
   sencty_TemperatureSensorConfiguration temperature_sensor;
+  /**
+   * @brief Configuration of an imu sensor.
+   */
+  sencty_IMUSensorConfiguration imu_sensor;
+  /**
+   * @brief Configuration of a GNSS sensor.
+   */
+  sencty_GNSSSensorConfiguration gnss_sensor;
 } sencty_SensorConfiguration;
-
-/**
- * @brief Minimum GPIO pin of a temperature sensor.
- */
-extern const uint8_t sencty_kMinTemperatureADCChannel;
-
-/**
- * @brief Maximum GPIO pin of a temperature sensor.
- */
-extern const uint8_t sencty_kMaxTemperatureADCChannel;
-
-/**
- * @brief Minimum supply voltage of the voltage divider [mV].
- */
-extern const uint16_t sencty_kMinTemperatureSupplyVoltage;
-
-/**
- * @brief Maximum supply voltage of the voltage divider [mV].
- */
-extern const uint16_t sencty_kMaxTemperatureSupplyVoltage;
 
 #ifdef __cplusplus
 extern "C" {

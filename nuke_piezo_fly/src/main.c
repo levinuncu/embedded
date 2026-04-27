@@ -12,6 +12,7 @@
 #include "common/comdef_common_definitions.h"
 #include "common/comsys_common_system_adapter.h"
 #include "sensor/senaty_sensor_api_types.h"
+/* #include "ble.h" */
 
 #define NUMBER_OF_RTC_SENSORS_READING (10U) ///< Maximum number of sensors reading saved in RTC memory.
 #define MICROSECONDS_PER_SECOND (1000000U)  ///< Microseconds per second [µs].
@@ -50,6 +51,12 @@ void test_nvs_read(void);
 void app_main(void) {
   ESP_LOGI(kLoggerTag, "Starting %d...", boot_counter+1);
 
+  /*
+   * BLE integration point:
+   * Initialize BLE once during startup before sensor data is sent.
+   */
+  // bleapi_Init();
+
   if (boot_counter == NUMBER_OF_RTC_SENSORS_READING) {
     ESP_LOGI(kLoggerTag, "Saved %u sensors readings. Saving in flash memory.", NUMBER_OF_RTC_SENSORS_READING);
 
@@ -61,6 +68,12 @@ void app_main(void) {
   } else {
     senctr_Init(&sencfg_sensor_configuration);
     const senaty_SensorsReading kSensorsReading = senctr_ReadSensors();
+
+    /*
+     * BLE integration point:
+     * Send the current reading to a connected BLE client.
+     */
+    // bleapi_SendSensorsReading(&kSensorsReading);
 
     ESP_LOGI(kLoggerTag, "Saving sensors reading in RTC memory.");
     sensors_readings[boot_counter] = kSensorsReading;
@@ -90,10 +103,19 @@ void test_nvs_read(void) {
 
   size_t number_of_sensors_readings = 0;
   stoctr_ReadFromStorage(kBufferSize, buffer, &number_of_sensors_readings); // TODO: Check if this code path for reading has any UB.
-  for (size_t buffer_index = 0; index < number_of_sensors_readings; ++buffer_index) {
+  for (size_t buffer_index = 0; buffer_index < number_of_sensors_readings; ++buffer_index) {
     const senaty_SensorsReading kSensorsReading = buffer[buffer_index];
     ESP_LOGI(kLoggerTag, "Read sensors data:");
     ESP_LOGI(kLoggerTag, "\tTemperature: %i", kSensorsReading.temperature);
+    ESP_LOGI(kLoggerTag, "\tHumidity: %u", kSensorsReading.humidity);
+    ESP_LOGI(kLoggerTag, "\tAcceleration X: %i", kSensorsReading.acceleration_x);
+    ESP_LOGI(kLoggerTag, "\tAcceleration Y: %i", kSensorsReading.acceleration_y);
+    ESP_LOGI(kLoggerTag, "\tAcceleration Z: %i", kSensorsReading.acceleration_z);
+    ESP_LOGI(kLoggerTag, "\tGyroscope X: %i", kSensorsReading.gyroscope_x);
+    ESP_LOGI(kLoggerTag, "\tGyroscope Y: %i", kSensorsReading.gyroscope_y);
+    ESP_LOGI(kLoggerTag, "\tGyroscope Z: %i", kSensorsReading.gyroscope_z);
+    ESP_LOGI(kLoggerTag, "\tLongitude: %u", kSensorsReading.longitude);
+    ESP_LOGI(kLoggerTag, "\tLatitude: %u", kSensorsReading.latitude);
     ESP_LOGI(kLoggerTag, "\tTimestamp: %u", kSensorsReading.timestamp);
   }
 

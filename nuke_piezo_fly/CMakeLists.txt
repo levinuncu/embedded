@@ -8,9 +8,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 list(APPEND EXTRA_COMPONENT_DIRS modules)
 
 if(CMAKE_HOST_WIN32)
-  # TODO: Check if this works on Windows. If not use: include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-  # Which works most of the time but when using custom targets (format) it sometimes does not set the IDF_PATH env variable.
-  include(%HOMEPATH%/.platformio/packages/framework-espidf/tools/cmake/project.cmake)
+  include("$ENV{USERPROFILE}/.platformio/packages/framework-espidf/tools/cmake/project.cmake")
 else()
   include(~/.platformio/packages/framework-espidf/tools/cmake/project.cmake)
 endif()

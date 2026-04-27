@@ -11,10 +11,13 @@
 
 #include "common/comass_common_assert.h"
 #include "common/comdef_common_definitions.h"
-#include "common/comhel_common_helper.h"
+#include "driver/gpio.h"
 #include "sensor/senaty_sensor_api_types.h"
 #include "sensor/sencty_sensor_config_types.h"
+#include "senimu_sensor_imu.h"
+#include "sennav_sensor_gnss.h"
 #include "sentem_sensor_temperature.h"
+#include "esp_timer.h"
 
 /**
  * @brief Initialization state of the module.
@@ -50,6 +53,8 @@ comdef_ReturnCode senapi_Init(const sencty_SensorConfiguration *const sensor_con
     return_code = comdef_kInvalidConfiguration;
   } else {
     sentem_Init(sensor_configuration->temperature_sensor);
+    senimu_Init(sensor_configuration->imu_sensor);
+    sennav_Init(sensor_configuration->gnss_sensor);
 
     senapi_initialized = true;
   }
@@ -65,9 +70,35 @@ comdef_ReturnCode senapi_ReadSensors(senaty_SensorsReading *const sensors_readin
   } else if (!senapi_initialized) {
     return_code = comdef_kNotInitialized;
   } else {
-    sensors_reading->temperature = sentem_ReadTemperature();
-    sensors_reading->humidity = 
-    sensors_reading->timestamp = 123; // NOLINT(cppcoreguidelines-avoid-magic-numbers, readability-magic-numbers)
+    dht11_measurement_t sentem_data = {0};
+    if (sentem_ReadData(&sentem_data)) {
+      sensors_reading->temperature = (int8_t)sentem_data.temperature;
+      sensors_reading->humidity = sentem_data.humidity;
+    } else {
+      sensors_reading->temperature = INT8_MIN;
+      sensors_reading->humidity = UINT8_MAX;
+      return_code = comdef_kInternalError;
+    }
+    
+    senimu_ImuData senimu_data = senimu_ReadIMUData();
+    sensors_reading->acceleration_x = senimu_data.acceleration_x;
+    sensors_reading->acceleration_y = senimu_data.acceleration_y;
+    sensors_reading->acceleration_z = senimu_data.acceleration_z;
+    sensors_reading->gyroscope_x = senimu_data.gyroscope_x;
+    sensors_reading->gyroscope_y = senimu_data.gyroscope_y;
+    sensors_reading->gyroscope_z = senimu_data.gyroscope_z;
+
+        sennav_GnssData sennav_data = {0};
+        if (sennav_ReadData(&sennav_data)) {
+          sensors_reading->longitude = sennav_data.longitude;
+          sensors_reading->latitude = sennav_data.latitude;
+        } else {
+          sensors_reading->longitude = UINT32_MAX;
+          sensors_reading->latitude = UINT32_MAX;
+          return_code = comdef_kInternalError;
+        }
+
+        sensors_reading->timestamp = (uint32_t)(esp_timer_get_time() / 1000);
   }
 
   return return_code;
@@ -78,14 +109,32 @@ static bool IsConfigurationValid(const sencty_SensorConfiguration *const sensor_
 
   bool valid_config = true;
 
-  if (!comhel_IsU8InRange(sensor_configuration->temperature_sensor.adc_channel, sencty_kMinTemperatureADCChannel,
-                          sencty_kMaxTemperatureADCChannel)) {
+  if (!GPIO_IS_VALID_GPIO((gpio_num_t)sensor_configuration->temperature_sensor.data_gpio)) {
     valid_config = false;
-  } else if (!comhel_IsU16InRange(sensor_configuration->temperature_sensor.supply_voltage,
-                                  sencty_kMinTemperatureSupplyVoltage, sencty_kMaxTemperatureSupplyVoltage)) {
+  }
+
+  if (!GPIO_IS_VALID_GPIO((gpio_num_t)sensor_configuration->imu_sensor.i2c_scl_gpio)) {
     valid_config = false;
-  } else {
-    // Nothing to do here.
+  }
+
+  if (!GPIO_IS_VALID_GPIO((gpio_num_t)sensor_configuration->imu_sensor.i2c_sda_gpio)) {
+    valid_config = false;
+  }
+
+  if (sensor_configuration->imu_sensor.i2c_clock_speed_hz == 0) {
+    valid_config = false;
+  }
+
+  if (!GPIO_IS_VALID_GPIO((gpio_num_t)sensor_configuration->gnss_sensor.uart_tx_gpio)) {
+    valid_config = false;
+  }
+
+  if (!GPIO_IS_VALID_GPIO((gpio_num_t)sensor_configuration->gnss_sensor.uart_rx_gpio)) {
+    valid_config = false;
+  }
+
+  if (sensor_configuration->gnss_sensor.uart_baud_rate_hz == 0) {
+    valid_config = false;
   }
 
   return valid_config;

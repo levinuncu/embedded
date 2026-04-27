@@ -11,9 +11,18 @@
 #ifndef SENTEM_SENSOR_TEMPERATURE_H_
 #define SENTEM_SENSOR_TEMPERATURE_H_
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "sensor/sencty_sensor_config_types.h"
+
+/**
+ * @brief Raw DHT11 measurement data.
+ */
+typedef struct {
+	uint8_t humidity;
+	uint8_t temperature;
+} dht11_measurement_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,7 +31,7 @@ extern "C" {
 /**
  * @brief Initialize the sensor temperature module.
  *
- * This function is used to initialize the temperature module. A fatal error is raised, if this function is called multiple times.
+ * This function is used to initialize the DHT11 temperature module. A fatal error is raised, if this function is called multiple times.
  *
  * @pre The temperature module must not be initialized, otherwise a ::comdef_kAlreadyInitialized fatal error is thrown.
  * 
@@ -31,15 +40,17 @@ extern "C" {
 void sentem_Init(const sencty_TemperatureSensorConfiguration configuration);
 
 /**
- * @brief Read the current temperature.
+ * @brief Read the current DHT11 data.
  * 
- * This functions reads the current temperature. INT8_MIN is returned, if reading the raw ADC voltage failed.
+ * This function reads the raw DHT11 measurement.
  *
  * @pre The temperature module must be initialized, otherwise a ::comdef_kNotInitialized fatal error is thrown.
  *
- * @return int8_t Read temperature [°C].
+ * @param [out] reading Output DHT11 measurement data.
+ * @return true -> data was read successfully
+ * @return false -> read failed
  */
-int8_t sentem_ReadTemperature(void);
+bool sentem_ReadData(dht11_measurement_t *const reading);
 
 /** @}*/
 
