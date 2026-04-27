@@ -1,0 +1,31 @@
+{
+  "name": "piezoapp",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web"
+  },
+  "dependencies": {
+    "@config-plugins/react-native-ble-plx": "^7.0.0",
+    "eas-cli": "^18.8.1",
+    "expo": "^49.0.23",
+    "expo-device": "~8.0.10",
+    "expo-status-bar": "~3.0.9",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-base64": "^0.2.2",
+    "react-native-ble-plx": "^3.5.1",
+    "react-native-safe-area-context": "^5.6.0",
+    "expo-splash-screen": "~0.20.5",
+    "expo-dev-client": "~2.4.13"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.0",
+    "typescript": "~5.9.2",
+    "@babel/core": "^7.20.0"
+  },
+  "private": true
+}
