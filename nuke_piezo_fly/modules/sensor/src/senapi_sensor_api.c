@@ -70,35 +70,44 @@ comdef_ReturnCode senapi_ReadSensors(senaty_SensorsReading *const sensors_readin
   } else if (!senapi_initialized) {
     return_code = comdef_kNotInitialized;
   } else {
+    sensors_reading->temperature = SENTEM_INVALID_TEMPERATURE;
+    sensors_reading->humidity = SENTEM_INVALID_HUMIDITY;
+    sensors_reading->acceleration_x = SENIMU_INVALID_ACCELERATION;
+    sensors_reading->acceleration_y = SENIMU_INVALID_ACCELERATION;
+    sensors_reading->acceleration_z = SENIMU_INVALID_ACCELERATION;
+    sensors_reading->gyroscope_x = SENIMU_INVALID_GYROSCOPE;
+    sensors_reading->gyroscope_y = SENIMU_INVALID_GYROSCOPE;
+    sensors_reading->gyroscope_z = SENIMU_INVALID_GYROSCOPE;
+    sensors_reading->longitude = SENNAV_INVALID_COORDINATE;
+    sensors_reading->latitude = SENNAV_INVALID_COORDINATE;
+
     dht11_measurement_t sentem_data = {0};
-    if (sentem_ReadData(&sentem_data)) {
+    const bool kTemperatureResult = sentem_ReadData(&sentem_data);
+    if (kTemperatureResult) {
       sensors_reading->temperature = (int8_t)sentem_data.temperature;
       sensors_reading->humidity = sentem_data.humidity;
-    } else {
-      sensors_reading->temperature = INT8_MIN;
-      sensors_reading->humidity = UINT8_MAX;
-      return_code = comdef_kInternalError;
     }
     
-    senimu_ImuData senimu_data = senimu_ReadIMUData();
-    sensors_reading->acceleration_x = senimu_data.acceleration_x;
-    sensors_reading->acceleration_y = senimu_data.acceleration_y;
-    sensors_reading->acceleration_z = senimu_data.acceleration_z;
-    sensors_reading->gyroscope_x = senimu_data.gyroscope_x;
-    sensors_reading->gyroscope_y = senimu_data.gyroscope_y;
-    sensors_reading->gyroscope_z = senimu_data.gyroscope_z;
+    senimu_ImuData senimu_data = {0};
+    const bool kImuResult = senimu_ReadIMUData(&senimu_data);
+    if (kImuResult) {
+      sensors_reading->acceleration_x = senimu_data.acceleration_x;
+      sensors_reading->acceleration_y = senimu_data.acceleration_y;
+      sensors_reading->acceleration_z = senimu_data.acceleration_z;
+      sensors_reading->gyroscope_x = senimu_data.gyroscope_x;
+      sensors_reading->gyroscope_y = senimu_data.gyroscope_y;
+      sensors_reading->gyroscope_z = senimu_data.gyroscope_z;
+    }
 
-        sennav_GnssData sennav_data = {0};
-        if (sennav_ReadData(&sennav_data)) {
-          sensors_reading->longitude = sennav_data.longitude;
-          sensors_reading->latitude = sennav_data.latitude;
-        } else {
-          sensors_reading->longitude = UINT32_MAX;
-          sensors_reading->latitude = UINT32_MAX;
-          return_code = comdef_kInternalError;
-        }
+    sennav_GnssData sennav_data = {0};
+    const bool kGnssResult = sennav_ReadData(&sennav_data);
+    if (kGnssResult) {
+      sensors_reading->longitude = sennav_data.longitude;
+      sensors_reading->latitude = sennav_data.latitude;
+    }
 
-        sensors_reading->timestamp = (uint32_t)(esp_timer_get_time() / 1000);
+    // TODO: das geht nicht damit bekommen wir ja messwerte mit dem selben timestamp wenn der esp neustartet
+    //     sensors_reading->timestamp = (uint32_t)(esp_timer_get_time() / 1000);
   }
 
   return return_code;

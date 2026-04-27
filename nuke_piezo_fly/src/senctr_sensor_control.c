@@ -36,8 +36,19 @@ senaty_SensorsReading senctr_ReadSensors(void) {
   }
 
   ESP_LOGI(kLoggerTag, "Read sensors data:");
+
   ESP_LOGI(kLoggerTag, "\tTemperature: %i", sensors_reading.temperature);
-  ESP_LOGI(kLoggerTag, "\tTimestamp: %u", sensors_reading.timestamp);
+  ESP_LOGI(kLoggerTag, "\tHumidity: %u", sensors_reading.humidity);
+
+  ESP_LOGI(kLoggerTag, "\tAcceleration X: %i", sensors_reading.acceleration_x);
+  ESP_LOGI(kLoggerTag, "\tAcceleration Y: %i", sensors_reading.acceleration_y);
+  ESP_LOGI(kLoggerTag, "\tAcceleration Z: %i", sensors_reading.acceleration_z);
+  ESP_LOGI(kLoggerTag, "\tGyroscope X: %i", sensors_reading.gyroscope_x);
+  ESP_LOGI(kLoggerTag, "\tGyroscope Y: %i", sensors_reading.gyroscope_y);
+  ESP_LOGI(kLoggerTag, "\tGyroscope Z: %i", sensors_reading.gyroscope_z);
+
+  ESP_LOGI(kLoggerTag, "\tLongitude: %u", sensors_reading.longitude);
+  ESP_LOGI(kLoggerTag, "\tLatitude: %u", sensors_reading.latitude);
 
   return sensors_reading;
 }

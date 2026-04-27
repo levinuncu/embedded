@@ -18,7 +18,6 @@
 
 #define SENNAV_UART_BUFFER_SIZE (1024)
 #define SENNAV_UART_TIMEOUT_MS (20)
-#define SENNAV_INVALID_COORDINATE (UINT32_MAX)
 #define SENNAV_COORDINATE_SCALE (10000.0)
 
 typedef struct {
@@ -30,6 +29,11 @@ typedef struct {
 
 static bool sennav_initialized = false;
 static uart_port_t sennav_uart_port = UART_NUM_1;
+
+/**
+ * @brief Tag of the ESP logger.
+ */
+static const char *const kLoggerTag = "GNSS";
 
 static bool ParseGNRMC(const char *const nmea_strings, sennav_GnrmcFields *const fields);
 static uint32_t EncodeCoordinate(double raw_coordinate, char direction);
@@ -59,6 +63,9 @@ void sennav_Init(const sencty_GNSSSensorConfiguration configuration) {
 														 UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE),
 			comdef_kInternalError);
 
+
+  ESP_LOGI(kLoggerTag, "GNSS initialized on UART port TX: %u, RX: %u", configuration.uart_tx_gpio, configuration.uart_tx_gpio);
+
 	sennav_initialized = true;
 }
 
@@ -66,12 +73,14 @@ bool sennav_ReadData(sennav_GnssData *const reading) {
 	comass_AssertTrue(sennav_initialized, comdef_kNotInitialized);
 	comass_AssertNotNull(reading, comdef_kInvalidParameter);
 
+	reading->longitude = SENNAV_INVALID_COORDINATE;
+	reading->latitude = SENNAV_INVALID_COORDINATE;
+
 	uint8_t nmea_strings[SENNAV_UART_BUFFER_SIZE] = {0};
 	const int bytes_read = uart_read_bytes(sennav_uart_port, nmea_strings, SENNAV_UART_BUFFER_SIZE - 1,
 																				 SENNAV_UART_TIMEOUT_MS / portTICK_PERIOD_MS);
 	if (bytes_read <= 0) {
-		reading->longitude = SENNAV_INVALID_COORDINATE;
-		reading->latitude = SENNAV_INVALID_COORDINATE;
+		ESP_LOGW(kLoggerTag, "No data received");
 		return false;
 	}
 
@@ -79,8 +88,7 @@ bool sennav_ReadData(sennav_GnssData *const reading) {
 
 	sennav_GnrmcFields fields = {0};
 	if (!ParseGNRMC((const char *)nmea_strings, &fields)) {
-		reading->longitude = SENNAV_INVALID_COORDINATE;
-		reading->latitude = SENNAV_INVALID_COORDINATE;
+		ESP_LOGW(kLoggerTag, "Parsing of data failed");
 		return false;
 	}
 
@@ -146,6 +154,7 @@ static bool ParseGNRMC(const char *const nmea_strings, sennav_GnrmcFields *const
 
 static uint32_t EncodeCoordinate(double raw_coordinate, char direction) {
 	if (raw_coordinate <= 0.0) {
+		ESP_LOGW(kLoggerTag, "Raw coordinate smaller than 0");
 		return SENNAV_INVALID_COORDINATE;
 	}
 
@@ -155,6 +164,7 @@ static uint32_t EncodeCoordinate(double raw_coordinate, char direction) {
 	const double scaled_coordinate = decimal_degree * SENNAV_COORDINATE_SCALE;
 
 	if (scaled_coordinate < 0.0) {
+		ESP_LOGW(kLoggerTag, "Scaled coordinate smaller than 0");
 		return SENNAV_INVALID_COORDINATE;
 	}
 

@@ -16,6 +16,9 @@
 
 #include "sensor/sencty_sensor_config_types.h"
 
+#define SENTEM_INVALID_HUMIDITY (UINT8_MAX)
+#define SENTEM_INVALID_TEMPERATURE (UINT8_MAX)
+
 /**
  * @brief Raw DHT11 measurement data.
  */

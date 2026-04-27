@@ -11,6 +11,8 @@
 
 #include "sensor/sencty_sensor_config_types.h"
 
+#define SENNAV_INVALID_COORDINATE (UINT32_MAX)
+
 typedef struct {
 	uint32_t longitude;
 	uint32_t latitude;

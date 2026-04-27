@@ -41,12 +41,21 @@ static bool dht11_read_byte(uint8_t *const byte_out);
 
 void sentem_Init(const sencty_TemperatureSensorConfiguration configuration) {
   comass_AssertTrue(!sentem_initialized, comdef_kAlreadyInitialized);
-
   comass_AssertTrue(GPIO_IS_VALID_GPIO(configuration.data_gpio), comdef_kInvalidParameter);
 
   sentem_data_gpio = (int)configuration.data_gpio;
-  gpio_set_direction((gpio_num_t)sentem_data_gpio, GPIO_MODE_OUTPUT);
-  gpio_set_level((gpio_num_t)sentem_data_gpio, 1);
+
+  const gpio_config_t kGpioConfig = {
+    pin_bit_mask: (1ULL << sentem_data_gpio),
+    mode: GPIO_MODE_OUTPUT,
+    pull_up_en: GPIO_PULLUP_ENABLE,
+    pull_down_en: GPIO_PULLDOWN_DISABLE,
+    intr_type: GPIO_INTR_DISABLE,
+  };
+	comass_AssertTrue(ESP_OK == gpio_config(&kGpioConfig), comdef_kInternalError);
+	comass_AssertTrue(ESP_OK == gpio_set_level((gpio_num_t)sentem_data_gpio, 1), comdef_kInternalError);
+
+  ESP_LOGI(kLoggerTag, "DHT11 initialized on GPIO port %u", configuration.data_gpio);
 
   sentem_initialized = true;
 }
@@ -54,6 +63,9 @@ void sentem_Init(const sencty_TemperatureSensorConfiguration configuration) {
 bool sentem_ReadData(dht11_measurement_t *const reading) {
   comass_AssertTrue(sentem_initialized, comdef_kNotInitialized);
   comass_AssertNotNull(reading, comdef_kInvalidParameter);
+
+  reading->humidity = SENTEM_INVALID_HUMIDITY;
+  reading->temperature = SENTEM_INVALID_TEMPERATURE;
 
   dht11_start_signal();
 

@@ -12,8 +12,12 @@
 #define SENIMU_SENSOR_IMU_H_
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #include "sensor/sencty_sensor_config_types.h"
+
+#define SENIMU_INVALID_ACCELERATION (INT8_MAX)
+#define SENIMU_INVALID_GYROSCOPE (INT16_MAX)
 
 /**
  * @brief Reading of the IMU sensor.
@@ -22,27 +26,27 @@ typedef struct {
 	/**
 	 * @brief Acceleration of X axis in g.
 	 */
-	float acceleration_x;
+	int8_t acceleration_x;
 	/**
 	 * @brief Acceleration of Y axis in g.
 	 */
-	float acceleration_y;
+	int8_t acceleration_y;
 	/**
 	 * @brief Acceleration of Z axis in g.
 	 */
-	float acceleration_z;
+	int8_t acceleration_z;
 	/**
 	 * @brief Gyroscope of X axis in degrees per second.
 	 */
-	float gyroscope_x;
+	int16_t gyroscope_x;
 	/**
 	 * @brief Gyroscope of Y axis in degrees per second.
 	 */
-	float gyroscope_y;
+	int16_t gyroscope_y;
 	/**
 	 * @brief Gyroscope of Z axis in degrees per second.
 	 */
-	float gyroscope_z;
+	int16_t gyroscope_z;
 } senimu_ImuData;
 
 #ifdef __cplusplus
@@ -67,9 +71,9 @@ void senimu_Init(const sencty_IMUSensorConfiguration configuration);
  *
  * @pre The imu module must be initialized, otherwise a ::comdef_kNotInitialized fatal error is thrown.
  *
- * @return senimu_ImuData Read imu data.
+ * @return bool Read imu data.
  */
-senimu_ImuData senimu_ReadIMUData(void);
+bool senimu_ReadIMUData(senimu_ImuData *const reading);
 
 /** @}*/
 

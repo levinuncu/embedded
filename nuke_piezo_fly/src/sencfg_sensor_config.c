@@ -10,19 +10,19 @@
 
 const sencty_SensorConfiguration sencfg_sensor_configuration = {
   .temperature_sensor = {
-    .data_gpio = GPIO_NUM_10,
+    .data_gpio = GPIO_NUM_12,
   },
   .imu_sensor = {
     .i2c_address = 0x68,
     .i2c_port = 0,
-    .i2c_scl_gpio = GPIO_NUM_7,
+    .i2c_scl_gpio = GPIO_NUM_22,
     .i2c_clock_speed_hz = 100000,
-    .i2c_sda_gpio = GPIO_NUM_6,
+    .i2c_sda_gpio = GPIO_NUM_21,
   },
   .gnss_sensor = {
     .uart_port = 1,
-    .uart_tx_gpio = GPIO_NUM_21,
-    .uart_rx_gpio = GPIO_NUM_22,
+    .uart_tx_gpio = GPIO_NUM_32,
+    .uart_rx_gpio = GPIO_NUM_33,
     .uart_baud_rate_hz = 9600,
   },
 };

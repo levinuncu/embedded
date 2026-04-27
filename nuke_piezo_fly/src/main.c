@@ -68,7 +68,6 @@ void app_main(void) {
   } else {
     senctr_Init(&sencfg_sensor_configuration);
     const senaty_SensorsReading kSensorsReading = senctr_ReadSensors();
-
     /*
      * BLE integration point:
      * Send the current reading to a connected BLE client.
