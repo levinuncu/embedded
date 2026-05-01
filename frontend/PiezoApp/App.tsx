@@ -1,33 +1,69 @@
 import React, { useState } from 'react';
-import { StyleSheet, Button, View, Text, Alert, Platform } from 'react-native';
+import { StyleSheet, Button, View, Text, Alert, Platform, TouchableOpacity } from 'react-native';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
+import DeviceModal from './DeviceConnectionModal';
+import useBLE from './useBLE';
 
-function showAlert(message) {
+function showAlert(message: string | undefined) {
   Alert.alert('Connection', message)
 }
 
+
 const App = () => {
-  const [isConnected, setIsConnected] = useState(false);
+  const {
+    requestPermissions,
+    scanForPeripherals,
+    allDevices,
+    connectToDevice,
+    connectedDevice,
+    disconnectFromDevice,
+  } = useBLE();
+
+  const scanForDevices = () => {
+    requestPermissions((isGranted: any) => {
+      if (isGranted) {
+        scanForPeripherals();
+      }
+    });
+  };
+
+  const [isModalVisible, setIsModalVisible] = useState<boolean>(false);
+  const hideModal = async () => {
+    setIsModalVisible(false);
+  }
+
+  const openModal = async () => {
+    scanForDevices();
+    setIsModalVisible(true);
+  }
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.container}>
         <View>
-          <Text style={styles.title}>App connection working!</Text>
-          <Text style={styles.title}>current (mock) connection state: {isConnected ? 'connected' : 'disconnected'}</Text>
-          <View style={styles.fixToText}>
-            <Button color="purple" title="Connect" onPress={() => { setIsConnected(true); showAlert('Connected'); }} disabled={isConnected} />
-            <Button color="purple" title="Disconnect" onPress={() => { setIsConnected(false); showAlert('Disconnected'); }} disabled={!isConnected} />
-          </View>
+          {connectedDevice ? (
+            <Text style={styles.title}> Your connected Device is: {connectedDevice.localName}</Text>
+          ) : (
+            <Text style={styles.title}>Connect to the sensor</Text>
+          )}
         </View>
+        <TouchableOpacity style={styles.connectButton}
+          onPress={connectedDevice ? disconnectFromDevice : openModal}>
+          <Text style={styles.buttonText}>{connectedDevice ? 'Disconnect' : 'Connect'}</Text>
+        </TouchableOpacity>
+        <DeviceModal
+          closeModal={hideModal}
+          visible={isModalVisible}
+          connectToPeripheral={connectToDevice}
+          devices={allDevices} />
       </SafeAreaView>
-    </SafeAreaProvider>
+    </SafeAreaProvider >
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f2f2f2',
     alignItems: 'center',
     justifyContent: 'center',
     marginHorizontal: 16,
@@ -36,9 +72,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginVertical: 8,
   },
-  fixToText: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  buttonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  connectButton: {
+    backgroundColor: 'purple',
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: 50,
+    marginHorizontal: 20,
+    marginBottom: 5,
+    borderRadius: 8,
   },
 });
 

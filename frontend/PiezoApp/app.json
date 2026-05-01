@@ -8,17 +8,7 @@
     "userInterfaceStyle": "light",
     "plugins": [
       "react-native-ble-plx",
-      [
-        "@config-plugins/react-native-ble-plx",
-        {
-          "isBackgroundEnabled": true,
-          "modes": [
-            "peripheral",
-            "central"
-          ],
-          "bluetoothAlwaysPermission": "Allow $(PRODUCT_NAME) to connect to bluetooth devices"
-        }
-      ]
+      "react-native-permissions"
     ],
     "newArchEnabled": true,
     "splash": {
@@ -35,7 +25,6 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.BLUETOOTH",
