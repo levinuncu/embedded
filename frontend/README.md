@@ -24,9 +24,10 @@ For iOS:
 ## For the prebuild command
 Go to the following file path `embedded/frontend/PiezoApp/`
 * for android continue the path with: `android/app/src/main/AndroidManifest.xml` and add the following piece of code in the file:
-  `<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" tools:replace="android:maxSdkVersion"/>`
+  `<uses-feature android:name="android.permission.BLUETOOTH_CONNECT"/>`
+  `<uses-feature android:name="android.hardware.bluetooth_le" android:required="true"/>`
 * for ios continue the path with: `ios/PiezoApp/Info.plist` and add the following piece of code into the file:
-    `<key>NSBluetoothPeripheralUsageDescription</key>`
+  `<key>NSBluetoothPeripheralUsageDescription</key>`
 	`<string>Allow $(PRODUCT_NAME) to connect to bluetooth devices</string>`
 
 ## Troubleshooting
