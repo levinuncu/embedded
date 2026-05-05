@@ -1,12 +1,5 @@
 /**
- * @file senaty_sensor_api_types.h
- *
- * @addtogroup sensor_api_types
- * @{
- *
  * @brief Type definitions of the sensor api.
- *
- * This module defines the data types and data structures used by the sensor API interface.
  */
 #ifndef SENATY_SENSOR_API_TYPES_H_
 #define SENATY_SENSOR_API_TYPES_H_
@@ -14,84 +7,107 @@
 #include <stdint.h>
 
 /**
- * @brief Struct for the reading of all sensors.
+ * @brief Reading of a GNSS sensor.
  */
 typedef struct {
   /**
-   * @brief Rotation speed of X axis [°/s].
+   * @brief Longitude position with scaling factor 10000.
    * 
-   * A value of INT16_MAX indicates that the position could not be read.
+   * The MSB bit indicates if the position is west or east from the meridian.
+   * A value of UINT32_MAX indicates that the longitude position could not be read.
    */
-  int16_t gyroscope_x;
+	uint32_t longitude;
   /**
-   * @brief Rotation speed of Y axis [°/s].
+   * @brief Latitude position with scaling factor 10000.
    * 
-   * A value of INT16_MAX indicates that the position could not be read.
+   * The MSB bit indicates if the position is north or south from the equator.
+   * A value of UINT32_MAX indicates that the latitude position could not be read.
    */
-  int16_t gyroscope_y;
+	uint32_t latitude;
   /**
-   * @brief Rotation speed of Z axis [°/s].
+   * @brief Timestamp of the reading [ms].
    * 
-   * A value of INT16_MAX indicates that the position could not be read.
+   * A value of UINT32_MAX indicates that the timestamp could not be read.
    */
-  int16_t gyroscope_z;
+  uint32_t timestamp;
+} senaty_GnssSensorReading;
+
+/**
+ * @brief Reading of an IMU sensor.
+ */
+typedef struct {
   /**
    * @brief Acceleration of X axis [m/s²].
    * 
-   * A value of INT8_MAX indicates that the position could not be read.
+   * A value of INT8_MAX indicates that the acceleration could not be read.
    */
   int8_t acceleration_x;
   /**
    * @brief Acceleration of Y axis [m/s²].
    * 
-   * A value of INT8_MAX indicates that the position could not be read.
+   * A value of INT8_MAX indicates that the acceleration could not be read.
    */
   int8_t acceleration_y;
   /**
    * @brief Acceleration of Z axis [m/s²].
    * 
-   * A value of INT8_MAX indicates that the position could not be read.
+   * A value of INT8_MAX indicates that the acceleration could not be read.
    */
   int8_t acceleration_z;
   /**
-   * @brief Read longitude position with scaling factor 10000.
+   * @brief Rotation speed of X axis [°/s].
    * 
-   * The MSB bit indicates if the position is west or east from the meridian.
-   * A value of UINT32_MAX indicates that the position could not be read.
+   * A value of INT16_MAX indicates that the rotation speed could not be read.
    */
-  uint32_t longitude;
+  int16_t gyroscope_x;
   /**
-   * @brief Read latitude position with scaling factor 10000.
+   * @brief Rotation speed of Y axis [°/s].
    * 
-   * The MSB bit indicates if the position is north or south from the equator.
-   * A value of UINT32_MAX indicates that the position could not be read.
+   * A value of INT16_MAX indicates that the rotation speed could not be read.
    */
-  uint32_t latitude;
+  int16_t gyroscope_y;
   /**
-   * @brief Read humidity of the temperature sensor [%].
+   * @brief Rotation speed of Z axis [°/s].
+   * 
+   * A value of INT16_MAX indicates that the rotation speed could not be read.
+   */
+  int16_t gyroscope_z;
+} senaty_ImuSensorReading;
+
+/**
+ * @brief Reading of a DHT11 temperature sensor.
+ */
+typedef struct {
+  /**
+   * @brief Humidity [%].
    * 
    * A value of UINT8_MAX indicates that the temperature could not be read.
    */
-  uint8_t humidity;
+	uint8_t humidity;
   /**
-   * @brief Read temperature of the temperature sensor [°C].
+   * @brief Temperature [°C].
    * 
-   * A value of INT8_MIN indicates that the temperature could not be read.
+   * A value of INT8_MAX indicates that the temperature could not be read.
    */
-  int8_t temperature;
+	int8_t temperature;
+} senaty_TemperatureSensorReading;
+
+/**
+ * @brief Reading of all sensors.
+ */
+typedef struct {
   /**
-   * @brief Timestamp of the reading [ms].
+   * @brief Reading of a GNSS sensor.
    */
-  uint32_t timestamp;
+  senaty_GnssSensorReading gnss_sensor;
+  /**
+   * @brief Reading of an IMU sensor.
+   */
+  senaty_ImuSensorReading imu_sensor;
+  /**
+   * @brief Reading of a temperature sensor.
+   */
+  senaty_TemperatureSensorReading temperature_sensor;
 } senaty_SensorsReading;
 
-#ifdef __cplusplus
-extern "C" {
-#endif // __cplusplus
-
-/** @}*/
-
-#ifdef __cplusplus
-}
-#endif // __cplusplus
 #endif // SENATY_SENSOR_API_TYPES_H_
