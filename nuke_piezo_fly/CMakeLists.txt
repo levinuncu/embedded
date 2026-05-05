@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 list(APPEND EXTRA_COMPONENT_DIRS modules)
+list(APPEND EXTRA_COMPONENT_DIRS components)
 
 if(CMAKE_HOST_WIN32)
   include("$ENV{USERPROFILE}/.platformio/packages/framework-espidf/tools/cmake/project.cmake")
@@ -21,3 +22,4 @@ project(
   DESCRIPTION "Nuke Piezo Fly"
   LANGUAGES CXX C
 )
+

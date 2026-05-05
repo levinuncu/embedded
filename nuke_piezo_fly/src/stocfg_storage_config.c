@@ -1,7 +1,5 @@
 /**
- * @file stocfg_storage_config.c
- *
- * @brief Definition of the storage configuration.
+ * @brief Implementation of the storage configuration.
  */
 #include "stocfg_storage_config.h"
 
