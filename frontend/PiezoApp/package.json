@@ -9,10 +9,10 @@
     "web": "expo start --web"
   },
   "dependencies": {
-    "eas-cli": "^18.9.1",
+    "eas-cli": "^18.11.0",
     "expo": "^55.0.19",
-    "expo-dev-client": "~55.0.30",
-    "expo-device": "~55.0.15",
+    "expo-dev-client": "~55.0.32",
+    "expo-device": "~55.0.16",
     "expo-splash-screen": "^55.0.19",
     "expo-status-bar": "^55.0.5",
     "expo-system-ui": "^55.0.16",

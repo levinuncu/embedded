@@ -2,18 +2,82 @@
 import { useState } from 'react';
 import { PermissionsAndroid, Platform } from 'react-native';
 import {
+    Base64,
     BleError,
     BleManager,
     Characteristic,
+    ConnectionPriority,
+    Descriptor,
     Device,
+    Subscription,
 } from 'react-native-ble-plx';
 import { PERMISSIONS, requestMultiple } from 'react-native-permissions';
 import DeviceInfo from 'react-native-device-info';
 
 import { atob } from 'react-native-quick-base64';
 
-const HEART_RATE_UUID = '0000180d-0000-1000-8000-00805f9b34fb';
-const HEART_RATE_CHARACTERISTIC = '00002a37-0000-1000-8000-00805f9b34fb';
+
+const createMockDevice = (overrides: Partial<Device>): Device => {
+    const device: Device = {
+        id: "00:00:00:00:00:00",
+        name: null,
+        localName: null,
+        rssi: null,
+        mtu: 23,
+        rawScanRecord: "",
+        serviceUUIDs: null,
+        solicitedServiceUUIDs: null,
+        overflowServiceUUIDs: null,
+        manufacturerData: null,
+        serviceData: null,
+        txPowerLevel: null,
+        isConnectable: null,
+
+        requestConnectionPriority: (priority: ConnectionPriority) => Promise.resolve(device),
+        readRSSI: () => Promise.resolve(device),
+        requestMTU: (mtu: number) => Promise.resolve(device),
+        connect: (options?: any) => Promise.resolve(device),
+        cancelConnection: () => Promise.resolve(device),
+        isConnected: () => Promise.resolve(true),
+        discoverAllServicesAndCharacteristics: () => Promise.resolve(device),
+        onDisconnected: (listener: (error: BleError | null, device: Device) => void): Subscription => {
+            return { remove: () => { } };
+        },
+
+        services: () => Promise.resolve([]),
+        characteristicsForService: (uuid: string) => Promise.resolve([]),
+        descriptorsForService: (sUuid: string, cUuid: string) => Promise.resolve([]),
+        readCharacteristicForService: (sUuid: string, cUuid: string) => Promise.resolve({} as any),
+        writeCharacteristicWithResponseForService: (sUuid: string, cUuid: string, value: Base64) => Promise.resolve({} as any),
+        writeCharacteristicWithoutResponseForService: (sUuid: string, cUuid: string, value: Base64) => Promise.resolve({} as any),
+        monitorCharacteristicForService: (sUuid: string, cUuid: string, cb: any) => ({ remove: () => { } }),
+
+        readDescriptorForService: (serviceUUID: string, characteristicUUID: string, descriptorUUID: string, transactionId?: string) => {
+            return Promise.resolve({} as Descriptor);
+        },
+
+        writeDescriptorForService: (serviceUUID: string, characteristicUUID: string, descriptorUUID: string, valueBase64: Base64, transactionId?: string) => {
+            return Promise.resolve({} as Descriptor);
+        },
+        ...overrides,
+    };
+
+    return device;
+};
+
+const mockDevices: Device[] = [
+    createMockDevice({
+        id: "AB:CD:EF:12:34:56",
+        name: "ESP-32",
+        localName: "ESP-32",
+        rssi: -60,
+        serviceUUIDs: ["181A"],
+        isConnectable: false,
+    }),
+];
+
+const SENSOR_UUID = '0000180d-0000-1000-8000-00805f9b34fb';
+const SENSOR_CHARACTERISTIC = '00002a37-0000-1000-8000-00805f9b34fb';
 
 const bleManager = new BleManager();
 
@@ -26,13 +90,13 @@ interface BluetoothLowEnergyApi {
     disconnectFromDevice: () => void;
     connectedDevice: Device | null;
     allDevices: Device[];
-    heartRate: number;
+    connectedSensors: number;
 }
 
 function useBLE(): BluetoothLowEnergyApi {
     const [allDevices, setAllDevices] = useState<Device[]>([]);
     const [connectedDevice, setConnectedDevice] = useState<Device | null>(null);
-    const [heartRate, setHeartRate] = useState<number>(0);
+    const [connectedSensors, setConnectedSensors] = useState<number>(0);
 
     const requestPermissions = async (cb: VoidCallback) => {
         if (Platform.OS === 'android') {
@@ -98,7 +162,9 @@ function useBLE(): BluetoothLowEnergyApi {
             bleManager.stopDeviceScan();
             startStreamingData(deviceConnection);
         } catch (e) {
-            console.log('FAILED TO CONNECT', e);
+            // console.log('FAILED TO CONNECT', e);
+            setConnectedDevice(mockDevices[0]);
+            console.log('connection mocked with ' + mockDevices[0].name);
         }
     };
 
@@ -106,11 +172,11 @@ function useBLE(): BluetoothLowEnergyApi {
         if (connectedDevice) {
             bleManager.cancelDeviceConnection(connectedDevice.id);
             setConnectedDevice(null);
-            setHeartRate(0);
+            console.log('disconnected mock connection');
         }
     };
 
-    const onHeartRateUpdate = (
+    const onConnectedSensorsUpdate = (
         error: BleError | null,
         characteristic: Characteristic | null,
     ) => {
@@ -123,27 +189,27 @@ function useBLE(): BluetoothLowEnergyApi {
         }
 
         const rawData = atob(characteristic.value);
-        let innerHeartRate: number = -1;
+        let innerConnectedSensors: number = -1;
 
         const firstBitValue: number = Number(rawData) & 0x01;
 
         if (firstBitValue === 0) {
-            innerHeartRate = rawData[1].charCodeAt(0);
+            innerConnectedSensors = rawData[1].charCodeAt(0);
         } else {
-            innerHeartRate =
+            innerConnectedSensors =
                 Number(rawData[1].charCodeAt(0) << 8) +
                 Number(rawData[2].charCodeAt(2));
         }
 
-        setHeartRate(innerHeartRate);
+        setConnectedSensors(innerConnectedSensors);
     };
 
     const startStreamingData = async (device: Device) => {
         if (device) {
             device.monitorCharacteristicForService(
-                HEART_RATE_UUID,
-                HEART_RATE_CHARACTERISTIC,
-                (error, characteristic) => onHeartRateUpdate(error, characteristic),
+                SENSOR_UUID,
+                SENSOR_CHARACTERISTIC,
+                (error, characteristic) => onConnectedSensorsUpdate(error, characteristic),
             );
         } else {
             console.log('No Device Connected');
@@ -157,7 +223,7 @@ function useBLE(): BluetoothLowEnergyApi {
         allDevices,
         connectedDevice,
         disconnectFromDevice,
-        heartRate,
+        connectedSensors: connectedSensors,
     };
 }
 

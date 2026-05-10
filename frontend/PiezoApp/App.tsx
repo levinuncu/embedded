@@ -37,13 +37,16 @@ const App = () => {
     setIsModalVisible(true);
   }
   return (
-    <SafeAreaProvider>
+    <SafeAreaProvider style={styles.provider}>
+      <Text style={styles.headerTitle}>
+        Piezo Fly App
+      </Text>
       <SafeAreaView style={styles.container}>
         <View>
           {connectedDevice ? (
-            <Text style={styles.title}> Your connected Device is: {connectedDevice.localName}</Text>
+            <Text style={styles.text}> Your connected Device is: {connectedDevice.localName}</Text>
           ) : (
-            <Text style={styles.title}>Connect to the sensor</Text>
+            <Text style={styles.text}>Connect to a sensor</Text>
           )}
         </View>
         <TouchableOpacity style={styles.connectButton}
@@ -61,30 +64,43 @@ const App = () => {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  provider: {
     flex: 1,
     backgroundColor: '#f2f2f2',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 16,
   },
-  title: {
+  headerTitle: {
+    alignItems: 'flex-start',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginTop: 50,
+    marginLeft: 20,
+  },
+  container: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  text: {
     textAlign: 'center',
     marginVertical: 8,
+    marginHorizontal: 20,
   },
   buttonText: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: 'bold',
     color: 'white',
   },
   connectButton: {
-    backgroundColor: 'purple',
+    backgroundColor: '#c9094fcb',
     justifyContent: 'center',
     alignItems: 'center',
-    height: 50,
+    height: 35,
     marginHorizontal: 20,
     marginBottom: 5,
+    marginTop: 5,
     borderRadius: 8,
+    paddingLeft: 20,
+    paddingRight: 20,
   },
 });
 
