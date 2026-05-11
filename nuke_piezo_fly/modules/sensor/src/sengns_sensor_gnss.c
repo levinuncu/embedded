@@ -3,9 +3,11 @@
  */
 #include "sengns_sensor_gnss.h"
 
+#include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <math.h>
+#include <time.h>
 
 #include "driver/uart.h"
 #include "hal/uart_types.h"
@@ -21,13 +23,14 @@
 #define COORDINATE_SCALE (10000.0)
 
 #define INVALID_POSITION (UINT32_MAX) //< Value for an invalid position.
-#define INVALID_TIMESTAMP (UINT32_MAX) //< Value for an invalid timestamp.
+#define INVALID_TIMESTAMP (UINT64_MAX) //< Value for an invalid timestamp.
 
 typedef struct {
 	double latitude_raw;
 	char latitude_direction;
 	double longitude_raw;
 	char longitude_direction;
+	uint64_t timestamp;
 } GnrmcFields;
 
 /**
@@ -47,6 +50,7 @@ static sencty_GnssSensorConfiguration configuration;
 
 static bool ParseGNRMC(const char *const nmea_strings, GnrmcFields *const fields);
 static bool EncodeCoordinate(double raw_coordinate, char direction, uint32_t *const data);
+uint64_t gnrmc_to_timestamp_ms(double time_raw, int date_raw);
 
 void sengns_Init(const sencty_GnssSensorConfiguration sensor_configuration) {
   configuration = sensor_configuration;
@@ -108,17 +112,22 @@ senaty_GnssSensorReading sengns_ReadData(void) {
 		return kFailedReading;
 	}
 
-  senaty_GnssSensorReading reading = {0};
-  if (!EncodeCoordinate(fields.longitude_raw, fields.longitude_direction, &reading.longitude)) {
+
+	uint32_t longitude = INVALID_POSITION;
+  if (!EncodeCoordinate(fields.longitude_raw, fields.longitude_direction, &longitude)) {
 		return kFailedReading;
   }
 
-  if (!EncodeCoordinate(fields.latitude_raw, fields.latitude_direction, &reading.latitude)) {
+	uint32_t latitude = INVALID_POSITION;
+  if (!EncodeCoordinate(fields.latitude_raw, fields.latitude_direction, &latitude)) {
 		return kFailedReading;
   }
 
-	// TODO: Get the real value from the satellite
-	reading.timestamp = 123456;
+	senaty_GnssSensorReading reading = {
+		.longitude = longitude,
+		.latitude = latitude,
+		.timestamp = fields.timestamp,
+	};
 
   ESP_LOGI(kLoggerTag, "Read sensor data");
   return reading;
@@ -140,10 +149,22 @@ static bool ParseGNRMC(const char *const nmea_strings, GnrmcFields *const fields
 	memcpy(sentence, start, line_length);
 	sentence[line_length] = '\0';
 
+	fields->latitude_raw = -1;
+	fields->longitude_raw = -1;
+
+	double time_raw = -1;
+	int date_raw = -1;
+	char status = 'Z';
 	int token_index = 0;
 	char *token = strtok(sentence, ",");
 	while (token != NULL) {
 		switch (token_index) {
+			case 0:
+				time_raw = strtod(token, NULL);
+				break;
+			case 1:
+				status = token[0];
+				break;
 			case 2:
 				fields->latitude_raw = strtod(token, NULL);
 				break;
@@ -156,12 +177,27 @@ static bool ParseGNRMC(const char *const nmea_strings, GnrmcFields *const fields
 			case 5:
 				fields->longitude_direction = token[0];
 				break;
+			case 8:
+				date_raw = atoi(token);
+				break;
 			default:
 				break;
 		}
 
 		++token_index;
 		token = strtok(NULL, ",");
+	}
+
+	if (status != 'A') {
+		return false;
+	}
+
+	if ((date_raw == -1) || (time_raw == -1)) {
+		return false;
+	}
+
+	if ((fields->latitude_raw == -1) || (fields->longitude_raw == -1)) {
+		return false;
 	}
 
 	if ((fields->latitude_direction != 'N') && (fields->latitude_direction != 'S')) {
@@ -171,6 +207,8 @@ static bool ParseGNRMC(const char *const nmea_strings, GnrmcFields *const fields
 	if ((fields->longitude_direction != 'E') && (fields->longitude_direction != 'W')) {
 		return false;
 	}
+
+	fields->timestamp = gnrmc_to_timestamp_ms(time_raw, date_raw);
 
 	return true;
 }
@@ -198,4 +236,48 @@ static bool EncodeCoordinate(double raw_coordinate, char direction, uint32_t *co
 
   *data = encoded;
 	return true;
+}
+
+uint64_t gnrmc_to_timestamp_ms(double time_raw, int date_raw)
+{
+    // --- Zeit zerlegen (hhmmss.sss) ---
+    int hour   = (int)(time_raw / 10000);
+    int minute = (int)((time_raw - hour * 10000) / 100);
+    int second = (int)(time_raw - hour * 10000 - minute * 100);
+
+    int millis = (int)((time_raw - (int)time_raw) * 1000.0 + 0.5);
+
+    // --- Datum zerlegen (ddmmyy) ---
+    int day   = date_raw / 10000;
+    int month = (date_raw / 100) % 100;
+    int year  = date_raw % 100;   // GPS: yy
+
+    // --- struct tm füllen ---
+    struct tm t = {0};
+    t.tm_year = (2000 + year) - 1900;  // Jahre seit 1900
+    t.tm_mon  = month - 1;             // 0–11
+    t.tm_mday = day;
+
+    t.tm_hour = hour;
+    t.tm_min  = minute;
+    t.tm_sec  = second;
+
+    t.tm_isdst = 0; // kein DST (UTC!)
+
+    // --- WICHTIG: auf UTC setzen ---
+    setenv("TZ", "UTC0", 1);
+    tzset();
+
+    // --- Sekunden seit Epoch ---
+    time_t seconds = mktime(&t);
+    if (seconds < 0) {
+        return 0;
+    }
+
+    // --- Millisekunden ---
+    uint64_t timestamp_ms =
+        ((uint64_t)seconds * 1000ULL) +
+        (uint64_t)millis;
+
+    return timestamp_ms;
 }

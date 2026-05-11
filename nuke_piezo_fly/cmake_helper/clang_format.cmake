@@ -1,4 +1,5 @@
 file(GLOB_RECURSE PROJECT_FORMAT_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/components/**/*.[ch]"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/**/*.[ch]"
     "${CMAKE_CURRENT_SOURCE_DIR}/modules/**/*.[ch]"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/**/*.[ch]"
