@@ -26,6 +26,8 @@ Go to the following file path `embedded/frontend/PiezoApp/`
 * for android continue the path with: `android/app/src/main/AndroidManifest.xml` and add the following piece of code in the file:
   `<uses-feature android:name="android.permission.BLUETOOTH_CONNECT"/>`
   `<uses-feature android:name="android.hardware.bluetooth_le" android:required="true"/>`
+* to enable the map, add this line in the `<application>` element -- or don't if it's already automatically added with the prebuild command:
+  `<meta-data android.name="com.google.android.geo.API_KEY" android:value="AIzaSyD_5NSjCS1NRtGPfOeUZPA-jaZqe91uLl0" />`
 * for ios continue the path with: `ios/PiezoApp/Info.plist` and add the following piece of code into the file:
   `<key>NSBluetoothPeripheralUsageDescription</key>`
 	`<string>Allow $(PRODUCT_NAME) to connect to bluetooth devices</string>`

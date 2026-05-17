@@ -8,7 +8,13 @@
     "userInterfaceStyle": "light",
     "plugins": [
       "react-native-ble-plx",
-      "react-native-permissions"
+      "react-native-permissions",
+      [
+        "react-native-maps",
+        {
+          "androidGoogleMapsApiKey": "AIzaSyD_5NSjCS1NRtGPfOeUZPA-jaZqe91uLl0"
+        }
+      ]
     ],
     "newArchEnabled": true,
     "splash": {

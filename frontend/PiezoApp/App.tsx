@@ -3,6 +3,7 @@ import { StyleSheet, Button, View, Text, Alert, Platform, TouchableOpacity } fro
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import DeviceModal from './DeviceConnectionModal';
 import useBLE from './useBLE';
+import MapView, { PROVIDER_GOOGLE } from 'react-native-maps';
 
 function showAlert(message: string | undefined) {
   Alert.alert('Connection', message)
@@ -44,7 +45,7 @@ const App = () => {
       <SafeAreaView style={styles.container}>
         <View>
           {connectedDevice ? (
-            <Text style={styles.text}> Your connected Device is: {connectedDevice.localName}</Text>
+            <Text style={styles.text}>Your connected Device is: {connectedDevice.localName}</Text>
           ) : (
             <Text style={styles.text}>Connect to a sensor</Text>
           )}
@@ -53,12 +54,43 @@ const App = () => {
           onPress={connectedDevice ? disconnectFromDevice : openModal}>
           <Text style={styles.buttonText}>{connectedDevice ? 'Disconnect' : 'Connect'}</Text>
         </TouchableOpacity>
-        <DeviceModal
-          closeModal={hideModal}
-          visible={isModalVisible}
-          connectToPeripheral={connectToDevice}
-          devices={allDevices} />
       </SafeAreaView>
+      <SafeAreaView style={styles.dataContainer}>
+        <View>
+          {connectedDevice ? (
+            <View>
+              <View style={styles.locationContainer}>
+                <Text style={styles.text}>Location data: </Text>
+                <MapView provider={PROVIDER_GOOGLE} style={styles.map} />
+              </View>
+              <View style={styles.container}>
+                <View style={styles.container}>
+                  <Text style={styles.text}>Speed: </Text>
+                  <Text style={styles.text}>3 km/h</Text>
+                </View>
+              </View>
+              <View style={styles.container}>
+                <View style={styles.container}>
+                  <Text style={styles.text}>Temperature: </Text>
+                  <Text style={styles.text}>20°</Text>
+                </View>
+                <View style={styles.container}>
+                  <Text style={styles.text}>Humidity: </Text>
+                  <Text style={styles.text}>43%</Text>
+                </View>
+              </View>
+            </View>
+          ) : (
+            <Text style={styles.placeholderText}>Connect to a sensor to see data</Text>
+          )}
+        </View>
+      </SafeAreaView>
+
+      <DeviceModal
+        closeModal={hideModal}
+        visible={isModalVisible}
+        connectToPeripheral={connectToDevice}
+        devices={allDevices} />
     </SafeAreaProvider >
   );
 }
@@ -80,10 +112,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  dataContainer: {
+    flexDirection: 'row',
+    alignContent: 'space-between',
+  },
+  locationContainer: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    alignContent: 'space-between',
+  },
+  map: {
+    width: '100%',
+    height: '60%',
+  },
   text: {
     textAlign: 'center',
     marginVertical: 8,
     marginHorizontal: 20,
+  },
+  placeholderText: {
+    textAlign: 'center',
+    marginVertical: 8,
+    marginHorizontal: 20,
+    opacity: 0.2,
   },
   buttonText: {
     fontSize: 14,

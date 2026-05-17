@@ -9,8 +9,8 @@
     "web": "expo start --web"
   },
   "dependencies": {
-    "eas-cli": "^18.11.0",
-    "expo": "^55.0.19",
+    "eas-cli": "^18.13.0",
+    "expo": "^55.0.24",
     "expo-dev-client": "~55.0.32",
     "expo-device": "~55.0.16",
     "expo-splash-screen": "^55.0.19",
@@ -21,6 +21,7 @@
     "react-native-base64": "^0.2.2",
     "react-native-ble-plx": "^3.5.1",
     "react-native-device-info": "^15.0.2",
+    "react-native-maps": "1.27.2",
     "react-native-permissions": "^5.5.1",
     "react-native-quick-base64": "^2.2.2",
     "react-native-safe-area-context": "^5.6.0"
