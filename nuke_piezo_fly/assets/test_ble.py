@@ -20,6 +20,7 @@ def device_filter(d, ad) -> bool:
 
 # Callback-Funktion für eine ankommende Notification, empfängt das Datenpaket und entpackt die Messdaten
 def on_notify(_sender, data: bytearray) -> None:
+    print(f"{data.hex()}")
     # Ein paket von unseren readings hat 32 byte -> padding und offset beachten bei unpack
     # MTU sind 7 readings 224 bytes alles darüber wird in eigenem paket gesendet -> also eigener callback aufruf
 
@@ -36,12 +37,16 @@ def on_notify(_sender, data: bytearray) -> None:
 
         # GNSS
         longitude, latitude, timestamp = struct.unpack("<LLQ", reading[:16])
-
+        # IMU
+        acc_x, acc_y, acc_z, _, gyro_x, gyro_y, gyro_z = struct.unpack("<bbbbhhh", reading[16:26])
+        # Temperature
+        humidity, temperature = struct.unpack("<Bb", reading[26:28])
 
         print(f"Reading {i+1}")
         print(f"Notify -> longitude={longitude}, latitude={latitude}, timestamp={timestamp}")
         print("--------------")
     
+
 
 # Asynchrone Funktion, die Bleak verwendet, um das Zielgerät zu finden, sich zu verbinden, Notifications 
 # zu abonnieren und die Daten zu empfangen
