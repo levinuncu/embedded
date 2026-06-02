@@ -141,10 +141,12 @@ function useBLE(): BluetoothLowEnergyApi {
 
     const scanForPeripherals = () =>
         bleManager.startDeviceScan(null, null, (error, device) => {
+            console.log('starts scanning');
             if (error) {
                 console.log(error);
             }
             if (device && device.name?.includes('ESP')) {
+                console.log('esp device found');
                 setAllDevices((prevState: Device[]) => {
                     if (!isDuplicteDevice(prevState, device)) {
                         return [...prevState, device];
@@ -152,6 +154,7 @@ function useBLE(): BluetoothLowEnergyApi {
                     return prevState;
                 });
             }
+            console.log('default');
         });
 
     const connectToDevice = async (device: Device) => {
@@ -162,9 +165,9 @@ function useBLE(): BluetoothLowEnergyApi {
             bleManager.stopDeviceScan();
             startStreamingData(deviceConnection);
         } catch (e) {
-            // console.log('FAILED TO CONNECT', e);
-            setConnectedDevice(mockDevices[0]);
-            console.log('connection mocked with ' + mockDevices[0].name);
+            console.log('FAILED TO CONNECT', e);
+            // setConnectedDevice(mockDevices[0]);
+            // console.log('connection mocked with ' + mockDevices[0].name);
         }
     };
 
@@ -172,7 +175,8 @@ function useBLE(): BluetoothLowEnergyApi {
         if (connectedDevice) {
             bleManager.cancelDeviceConnection(connectedDevice.id);
             setConnectedDevice(null);
-            console.log('disconnected mock connection');
+            console.log('disconnected: ', connectedDevice.name);
+            // console.log('disconnected mock connection');
         }
     };
 

@@ -24,6 +24,7 @@ const App = () => {
     requestPermissions((isGranted: any) => {
       if (isGranted) {
         scanForPeripherals();
+        console.log('scanning');
       }
     });
   };

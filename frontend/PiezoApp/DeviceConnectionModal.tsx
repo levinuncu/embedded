@@ -155,7 +155,7 @@ const DeviceModal: FC<DeviceModalProps> = props => {
                 </Text>
                 <FlatList
                     contentContainerStyle={styles.modalFlatlistContiner}
-                    data={mockDevices}
+                    data={devices}
                     renderItem={renderDeviceModalListItem}
                 />
             </SafeAreaView>
