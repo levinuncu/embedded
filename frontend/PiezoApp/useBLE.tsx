@@ -17,65 +17,6 @@ import DeviceInfo from 'react-native-device-info';
 import { atob } from 'react-native-quick-base64';
 
 
-const createMockDevice = (overrides: Partial<Device>): Device => {
-    const device: Device = {
-        id: "00:00:00:00:00:00",
-        name: null,
-        localName: null,
-        rssi: null,
-        mtu: 23,
-        rawScanRecord: "",
-        serviceUUIDs: null,
-        solicitedServiceUUIDs: null,
-        overflowServiceUUIDs: null,
-        manufacturerData: null,
-        serviceData: null,
-        txPowerLevel: null,
-        isConnectable: null,
-
-        requestConnectionPriority: (priority: ConnectionPriority) => Promise.resolve(device),
-        readRSSI: () => Promise.resolve(device),
-        requestMTU: (mtu: number) => Promise.resolve(device),
-        connect: (options?: any) => Promise.resolve(device),
-        cancelConnection: () => Promise.resolve(device),
-        isConnected: () => Promise.resolve(true),
-        discoverAllServicesAndCharacteristics: () => Promise.resolve(device),
-        onDisconnected: (listener: (error: BleError | null, device: Device) => void): Subscription => {
-            return { remove: () => { } };
-        },
-
-        services: () => Promise.resolve([]),
-        characteristicsForService: (uuid: string) => Promise.resolve([]),
-        descriptorsForService: (sUuid: string, cUuid: string) => Promise.resolve([]),
-        readCharacteristicForService: (sUuid: string, cUuid: string) => Promise.resolve({} as any),
-        writeCharacteristicWithResponseForService: (sUuid: string, cUuid: string, value: Base64) => Promise.resolve({} as any),
-        writeCharacteristicWithoutResponseForService: (sUuid: string, cUuid: string, value: Base64) => Promise.resolve({} as any),
-        monitorCharacteristicForService: (sUuid: string, cUuid: string, cb: any) => ({ remove: () => { } }),
-
-        readDescriptorForService: (serviceUUID: string, characteristicUUID: string, descriptorUUID: string, transactionId?: string) => {
-            return Promise.resolve({} as Descriptor);
-        },
-
-        writeDescriptorForService: (serviceUUID: string, characteristicUUID: string, descriptorUUID: string, valueBase64: Base64, transactionId?: string) => {
-            return Promise.resolve({} as Descriptor);
-        },
-        ...overrides,
-    };
-
-    return device;
-};
-
-const mockDevices: Device[] = [
-    createMockDevice({
-        id: "AB:CD:EF:12:34:56",
-        name: "ESP-32",
-        localName: "ESP-32",
-        rssi: -60,
-        serviceUUIDs: ["181A"],
-        isConnectable: false,
-    }),
-];
-
 const SENSOR_UUID = '0000180d-0000-1000-8000-00805f9b34fb';
 const SENSOR_CHARACTERISTIC = '00002a37-0000-1000-8000-00805f9b34fb';
 
@@ -141,12 +82,12 @@ function useBLE(): BluetoothLowEnergyApi {
 
     const scanForPeripherals = () =>
         bleManager.startDeviceScan(null, null, (error, device) => {
-            console.log('starts scanning');
+            console.log('starts scanning for ESP');
             if (error) {
                 console.log(error);
             }
-            if (device && device.name?.includes('ESP')) {
-                console.log('esp device found');
+            if (device && device.name?.includes('ESP23')) {
+                console.log('DEVICE FOUND YOOOOOOOOO');
                 setAllDevices((prevState: Device[]) => {
                     if (!isDuplicteDevice(prevState, device)) {
                         return [...prevState, device];
@@ -154,7 +95,7 @@ function useBLE(): BluetoothLowEnergyApi {
                     return prevState;
                 });
             }
-            console.log('default');
+            console.log('initiating rescan');
         });
 
     const connectToDevice = async (device: Device) => {
@@ -162,21 +103,21 @@ function useBLE(): BluetoothLowEnergyApi {
             const deviceConnection = await bleManager.connectToDevice(device.id);
             setConnectedDevice(deviceConnection);
             await deviceConnection.discoverAllServicesAndCharacteristics();
-            bleManager.stopDeviceScan();
+            stopScanningForDevices();
             startStreamingData(deviceConnection);
         } catch (e) {
             console.log('FAILED TO CONNECT', e);
-            // setConnectedDevice(mockDevices[0]);
-            // console.log('connection mocked with ' + mockDevices[0].name);
         }
     };
+
+    const stopScanningForDevices = () =>
+        bleManager.stopDeviceScan();
 
     const disconnectFromDevice = () => {
         if (connectedDevice) {
             bleManager.cancelDeviceConnection(connectedDevice.id);
             setConnectedDevice(null);
             console.log('disconnected: ', connectedDevice.name);
-            // console.log('disconnected mock connection');
         }
     };
 

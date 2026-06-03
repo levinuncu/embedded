@@ -33,6 +33,9 @@
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
+        "BLUETOOTH_SCAN",
+        "BLUETOOTH_CONNECT",
+        "ACCES_FINE_LOCATION",
         "android.permission.BLUETOOTH",
         "android.permission.BLUETOOTH_ADMIN",
         "android.permission.BLUETOOTH_CONNECT"
@@ -41,6 +44,11 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "45729f91-88a7-44af-b719-e76248f439f4"
+      }
     }
   }
 }
