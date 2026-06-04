@@ -1,5 +1,5 @@
 /* eslint-disable no-bitwise */
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { PermissionsAndroid, Platform } from 'react-native';
 import {
     BleError,
@@ -44,6 +44,68 @@ interface BluetoothLowEnergyApi {
     sensorData: SensorData;
 }
 
+const INVALID_U32 = 0xffffffff;
+const INVALID_U64_HIGH = 0xffffffff;
+const INVALID_U64_LOW = 0xffffffff;
+
+function decodeCoordinate(raw: number): number {
+    const MSB = 0x80000000;
+    const value = raw & ~MSB;
+    const isNegative = (raw & MSB) !== 0;
+    return isNegative ? -value / 1e7 : value / 1e7;
+}
+
+function base64ToUint8Array(base64: string): Uint8Array {
+    const binaryString = atob(base64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes;
+}
+
+function parseSensorReading(buffer: ArrayBuffer, offset: number): SensorData | null {
+    const view = new DataView(buffer, offset, 32);
+
+    const longitudeRaw = view.getUint32(0, true);
+    const latitudeRaw = view.getUint32(4, true);
+    const timestampLow = view.getUint32(8, true);
+    const timestampHigh = view.getUint32(12, true);
+
+    if (
+        longitudeRaw === INVALID_U32 ||
+        latitudeRaw === INVALID_U32 ||
+        (timestampHigh === INVALID_U64_HIGH && timestampLow === INVALID_U64_LOW)
+    ) {
+        return null;
+    }
+
+    const longitude = decodeCoordinate(longitudeRaw);
+    const latitude = decodeCoordinate(latitudeRaw);
+    const timestamp = timestampHigh * 2 ** 32 + timestampLow;
+
+    const acc_x = view.getInt8(16);
+    const acc_y = view.getInt8(17);
+    const acc_z = view.getInt8(18);
+
+    const gyro_x = view.getInt16(20, true);
+    const gyro_y = view.getInt16(22, true);
+    const gyro_z = view.getInt16(24, true);
+
+    const humidity = view.getUint8(26);
+    const temperature = view.getInt8(27);
+
+    return {
+        speed: null, // TODO: calculate speed if needed
+        temperature,
+        humidity,
+        location: { latitude, longitude },
+        imu: { acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z },
+        timestamp,
+    };
+}
+
 function useBLE(): BluetoothLowEnergyApi {
     const [allDevices, setAllDevices] = useState<Device[]>([]);
     const [connectedDevice, setConnectedDevice] = useState<Device | null>(null);
@@ -57,20 +119,7 @@ function useBLE(): BluetoothLowEnergyApi {
         timestamp: null,
     });
 
-    const INVALID_U32 = 0xffffffff;
-    const INVALID_U64_HIGH = 0xffffffff;
-    const INVALID_U64_LOW = 0xffffffff;
-
-    // decodes coordinate with MSB sign bit and scale by 1e7
-    function decodeCoordinate(raw: number): number {
-        const MSB = 0x80000000;
-        const value = raw & ~MSB; // clear MSB
-        const isNegative = (raw & MSB) !== 0;
-        const degrees = value / 1e7;
-        return isNegative ? -degrees : degrees;
-    }
-
-    const requestPermissions = async (cb: VoidCallback) => {
+    const requestPermissions = useCallback(async (cb: VoidCallback) => {
         if (Platform.OS === 'android') {
             const apiLevel = await DeviceInfo.getApiLevel();
 
@@ -94,31 +143,28 @@ function useBLE(): BluetoothLowEnergyApi {
                 ]);
 
                 const isGranted =
-                    result['android.permission.BLUETOOTH_CONNECT'] ===
-                    PermissionsAndroid.RESULTS.GRANTED &&
-                    result['android.permission.BLUETOOTH_SCAN'] ===
-                    PermissionsAndroid.RESULTS.GRANTED &&
-                    result['android.permission.ACCESS_FINE_LOCATION'] ===
-                    PermissionsAndroid.RESULTS.GRANTED;
+                    result['android.permission.BLUETOOTH_CONNECT'] === PermissionsAndroid.RESULTS.GRANTED &&
+                    result['android.permission.BLUETOOTH_SCAN'] === PermissionsAndroid.RESULTS.GRANTED &&
+                    result['android.permission.ACCESS_FINE_LOCATION'] === PermissionsAndroid.RESULTS.GRANTED;
 
                 cb(isGranted);
             }
         } else {
             cb(true);
         }
-    };
+    }, []);
 
-    const isDuplicateDevice = (devices: Device[], nextDevice: Device) =>
-        devices.findIndex(device => nextDevice.id === device.id) > -1;
+    const isDuplicateDevice = useCallback((devices: Device[], nextDevice: Device) =>
+        devices.findIndex(device => nextDevice.id === device.id) > -1, []);
 
-    const scanForPeripherals = () =>
+    const scanForPeripherals = useCallback(() => {
         bleManager.startDeviceScan(null, null, (error, device) => {
             if (error) {
                 console.log(error);
             }
             if (device && device.name?.includes('piezo')) {
                 console.log('DEVICE FOUND');
-                setAllDevices((prevState: Device[]) => {
+                setAllDevices(prevState => {
                     if (!isDuplicateDevice(prevState, device)) {
                         return [...prevState, device];
                     }
@@ -126,6 +172,7 @@ function useBLE(): BluetoothLowEnergyApi {
                 });
             }
         });
+    }, [isDuplicateDevice]);
 
     const connectToDevice = async (device: Device) => {
         try {
@@ -139,18 +186,11 @@ function useBLE(): BluetoothLowEnergyApi {
         }
     };
 
-    const stopScanningForDevices = () =>
+    const stopScanningForDevices = useCallback(() => {
         bleManager.stopDeviceScan();
+    }, []);
 
-    const disconnectFromDevice = () => {
-        if (connectedDevice) {
-            bleManager.cancelDeviceConnection(connectedDevice.id);
-            setConnectedDevice(null);
-            console.log('disconnected: ', connectedDevice.name);
-        }
-    };
-
-    const onConnectedSensorsUpdate = (error: BleError | null, characteristic: Characteristic | null) => {
+    const onConnectedSensorsUpdate = useCallback((error: BleError | null, characteristic: Characteristic | null) => {
         if (error) {
             console.log(error);
             return;
@@ -160,77 +200,43 @@ function useBLE(): BluetoothLowEnergyApi {
             return;
         }
 
-        // decodes base64 to ArrayBuffer
-        const base64 = characteristic.value;
-        const binaryString = atob(base64);
-        const len = binaryString.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-        }
+        const bytes = base64ToUint8Array(characteristic.value);
 
         if (bytes.length < 32 || bytes.length % 32 !== 0) {
             console.warn('Invalid data length:', bytes.length);
             return;
         }
 
+        function toArrayBuffer(buffer: ArrayBuffer | SharedArrayBuffer): ArrayBuffer {
+            if (buffer instanceof ArrayBuffer) {
+                return buffer;
+            }
+            const copy = new ArrayBuffer(buffer.byteLength);
+            new Uint8Array(copy).set(new Uint8Array(buffer));
+            return copy;
+        }
+
+        const buffer = toArrayBuffer(bytes.buffer);
         const numberOfReadings = bytes.length / 32;
         const readings: SensorData[] = [];
 
         for (let i = 0; i < numberOfReadings; i++) {
-            const offset = i * 32;
-            const view = new DataView(bytes.buffer, offset, 32);
-
-            // GNSS
-            const longitudeRaw = view.getUint32(0, true);
-            const latitudeRaw = view.getUint32(4, true);
-            const timestampLow = view.getUint32(8, true);
-            const timestampHigh = view.getUint32(12, true);
-
-            // checks for invalid GNSS values
-            if (
-                longitudeRaw === INVALID_U32 ||
-                latitudeRaw === INVALID_U32 ||
-                (timestampHigh === INVALID_U64_HIGH && timestampLow === INVALID_U64_LOW)
-            ) {
-                console.log('invalid GNSS data - skipping reading');
-                continue;
+            const reading = parseSensorReading(buffer, i * 32);
+            if (reading) {
+                readings.push(reading);
             }
-
-            const longitude = decodeCoordinate(longitudeRaw);
-            const latitude = decodeCoordinate(latitudeRaw);
-            const timestamp = timestampHigh * 2 ** 32 + timestampLow;
-
-            // IMU
-            const acc_x = view.getInt8(16);
-            const acc_y = view.getInt8(17);
-            const acc_z = view.getInt8(18);
-            // skips padding at 19
-            const gyro_x = view.getInt16(20, true);
-            const gyro_y = view.getInt16(22, true);
-            const gyro_z = view.getInt16(24, true);
-
-            // temp
-            const humidity = view.getUint8(26);
-            const temperature = view.getInt8(27);
-
-            readings.push({
-                speed: null, // TODO: calculate speed from GNSS
-                temperature,
-                humidity,
-                location: { latitude, longitude },
-                imu: { acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z },
-                timestamp,
-            });
         }
 
         if (readings.length > 0) {
-            // takes the first reading and updates sensorData state
-            setSensorData(readings[0]);
+            setSensorData(readings[0]); // update with first valid reading
         }
-    };
 
-    const startStreamingData = async (device: Device) => {
+        console.log('Received bytes length:', bytes.length);
+        console.log('Raw data (hex):', Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join(' '));
+    }, []);
+
+
+    const startStreamingData = useCallback(async (device: Device) => {
         if (device) {
             device.monitorCharacteristicForService(
                 SENSOR_UUID,
@@ -240,7 +246,15 @@ function useBLE(): BluetoothLowEnergyApi {
         } else {
             console.log('No Device Connected');
         }
-    };
+    }, [onConnectedSensorsUpdate]);
+
+    const disconnectFromDevice = useCallback(() => {
+        if (connectedDevice) {
+            bleManager.cancelDeviceConnection(connectedDevice.id);
+            setConnectedDevice(null);
+            console.log('disconnected: ', connectedDevice.name);
+        }
+    }, [connectedDevice]);
 
     return {
         scanForPeripherals,
