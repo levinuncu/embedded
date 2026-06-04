@@ -2,20 +2,16 @@
 import { useState } from 'react';
 import { PermissionsAndroid, Platform } from 'react-native';
 import {
-    Base64,
     BleError,
     BleManager,
     Characteristic,
-    ConnectionPriority,
-    Descriptor,
     Device,
-    Subscription,
 } from 'react-native-ble-plx';
 import { PERMISSIONS, requestMultiple } from 'react-native-permissions';
 import DeviceInfo from 'react-native-device-info';
 
-const SENSOR_UUID = '0000180d-0000-1000-8000-00805f9b34fb';
-const SENSOR_CHARACTERISTIC = '00002a37-0000-1000-8000-00805f9b34fb';
+const SENSOR_UUID = '0000fff0-0000-1000-8000-00805f9b34fb';
+const SENSOR_CHARACTERISTIC = '0000fff1-0000-1000-8000-00805f9b34fb';
 
 const bleManager = new BleManager();
 
@@ -37,7 +33,6 @@ interface SensorData {
     timestamp: number | null;
 }
 
-
 interface BluetoothLowEnergyApi {
     requestPermissions(cb: VoidCallback): Promise<void>;
     scanForPeripherals(): void;
@@ -53,24 +48,27 @@ function useBLE(): BluetoothLowEnergyApi {
     const [allDevices, setAllDevices] = useState<Device[]>([]);
     const [connectedDevice, setConnectedDevice] = useState<Device | null>(null);
     const [connectedSensors, setConnectedSensors] = useState<number>(0);
-    const [sensorData, setSensorData] = useState({
-        speed: 5,
-        temperature: 0,
-        humidity: 0,
-        location: {
-            latitude: 0,
-            longitude: 0,
-        },
-        imu: {
-            acc_x: 0,
-            acc_y: 0,
-            acc_z: 0,
-            gyro_x: 0,
-            gyro_y: 0,
-            gyro_z: 0,
-        },
-        timestamp: 0,
+    const [sensorData, setSensorData] = useState<SensorData>({
+        speed: null,
+        temperature: null,
+        humidity: null,
+        location: null,
+        imu: null,
+        timestamp: null,
     });
+
+    const INVALID_U32 = 0xffffffff;
+    const INVALID_U64_HIGH = 0xffffffff;
+    const INVALID_U64_LOW = 0xffffffff;
+
+    // decodes coordinate with MSB sign bit and scale by 1e7
+    function decodeCoordinate(raw: number): number {
+        const MSB = 0x80000000;
+        const value = raw & ~MSB; // clear MSB
+        const isNegative = (raw & MSB) !== 0;
+        const degrees = value / 1e7;
+        return isNegative ? -degrees : degrees;
+    }
 
     const requestPermissions = async (cb: VoidCallback) => {
         if (Platform.OS === 'android') {
@@ -110,7 +108,7 @@ function useBLE(): BluetoothLowEnergyApi {
         }
     };
 
-    const isDuplicteDevice = (devices: Device[], nextDevice: Device) =>
+    const isDuplicateDevice = (devices: Device[], nextDevice: Device) =>
         devices.findIndex(device => nextDevice.id === device.id) > -1;
 
     const scanForPeripherals = () =>
@@ -121,7 +119,7 @@ function useBLE(): BluetoothLowEnergyApi {
             if (device && device.name?.includes('piezo')) {
                 console.log('DEVICE FOUND');
                 setAllDevices((prevState: Device[]) => {
-                    if (!isDuplicteDevice(prevState, device)) {
+                    if (!isDuplicateDevice(prevState, device)) {
                         return [...prevState, device];
                     }
                     return prevState;
@@ -177,18 +175,30 @@ function useBLE(): BluetoothLowEnergyApi {
         }
 
         const numberOfReadings = bytes.length / 32;
-        const readings = [];
+        const readings: SensorData[] = [];
 
         for (let i = 0; i < numberOfReadings; i++) {
             const offset = i * 32;
             const view = new DataView(bytes.buffer, offset, 32);
 
             // GNSS
-            const longitude = view.getUint32(0, true); // little endian
-            const latitude = view.getUint32(4, true);
+            const longitudeRaw = view.getUint32(0, true);
+            const latitudeRaw = view.getUint32(4, true);
             const timestampLow = view.getUint32(8, true);
             const timestampHigh = view.getUint32(12, true);
-            // combines low and high to form 64-bit timestamp
+
+            // checks for invalid GNSS values
+            if (
+                longitudeRaw === INVALID_U32 ||
+                latitudeRaw === INVALID_U32 ||
+                (timestampHigh === INVALID_U64_HIGH && timestampLow === INVALID_U64_LOW)
+            ) {
+                console.log('invalid GNSS data - skipping reading');
+                continue;
+            }
+
+            const longitude = decodeCoordinate(longitudeRaw);
+            const latitude = decodeCoordinate(latitudeRaw);
             const timestamp = timestampHigh * 2 ** 32 + timestampLow;
 
             // IMU
@@ -205,41 +215,18 @@ function useBLE(): BluetoothLowEnergyApi {
             const temperature = view.getInt8(27);
 
             readings.push({
-                longitude,
-                latitude,
-                timestamp,
-                acc_x,
-                acc_y,
-                acc_z,
-                gyro_x,
-                gyro_y,
-                gyro_z,
-                humidity,
+                speed: null, // TODO: calculate speed from GNSS
                 temperature,
+                humidity,
+                location: { latitude, longitude },
+                imu: { acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z },
+                timestamp,
             });
         }
 
-        // takes the first reading and updates sensorData state
         if (readings.length > 0) {
-            const first = readings[0];
-            setSensorData({
-                speed: 0, // TODO: calculate speed from GNSS
-                temperature: first.temperature,
-                humidity: first.humidity,
-                location: {
-                    latitude: first.latitude,
-                    longitude: first.longitude,
-                },
-                imu: {
-                    acc_x: first.acc_x,
-                    acc_y: first.acc_y,
-                    acc_z: first.acc_z,
-                    gyro_x: first.gyro_x,
-                    gyro_y: first.gyro_y,
-                    gyro_z: first.gyro_z,
-                },
-                timestamp: first.timestamp,
-            });
+            // takes the first reading and updates sensorData state
+            setSensorData(readings[0]);
         }
     };
 
@@ -262,7 +249,7 @@ function useBLE(): BluetoothLowEnergyApi {
         allDevices,
         connectedDevice,
         disconnectFromDevice,
-        connectedSensors: connectedSensors,
+        connectedSensors,
         sensorData,
     };
 }
