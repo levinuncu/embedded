@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, Button, View, Text, Alert, Platform, TouchableOpacity } from 'react-native';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import DeviceModal from './DeviceConnectionModal';
 import useBLE from './useBLE';
-import MapView, { PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 
 function showAlert(message: string | undefined) {
   Alert.alert('Connection', message)
@@ -18,7 +18,16 @@ const App = () => {
     connectToDevice,
     connectedDevice,
     disconnectFromDevice,
+    sensorData,
   } = useBLE();
+
+  const [region, setRegion] = useState({
+    latitude: 0,
+    longitude: 0,
+    // for zoom:
+    latitudeDelta: 0,
+    longitudeDelta: 0,
+  });
 
   const scanForDevices = () => {
     requestPermissions((isGranted: any) => {
@@ -38,6 +47,18 @@ const App = () => {
     scanForDevices();
     setIsModalVisible(true);
   }
+
+  useEffect(() => {
+    if (sensorData.location) {
+      setRegion({
+        latitude: sensorData.location.latitude,
+        longitude: sensorData.location.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      });
+    }
+  }, [sensorData.location]);
+
   return (
     <SafeAreaProvider style={styles.provider}>
       <Text style={styles.headerTitle}>
@@ -46,7 +67,7 @@ const App = () => {
       <SafeAreaView style={styles.container}>
         <View>
           {connectedDevice ? (
-            <Text style={styles.text}>Your connected Device is: {connectedDevice.localName}</Text>
+            <Text style={styles.text}>Your connected Device is: {connectedDevice.name}</Text>
           ) : (
             <Text style={styles.text}>Connect to a sensor</Text>
           )}
@@ -62,22 +83,37 @@ const App = () => {
             <View>
               <View style={styles.locationContainer}>
                 <Text style={styles.text}>Location data: </Text>
-                <MapView provider={PROVIDER_GOOGLE} style={styles.map} />
+                <MapView
+                  provider={PROVIDER_GOOGLE}
+                  style={styles.map}
+                  region={region}
+                  onRegionChangeComplete={setRegion}
+                >
+                  {sensorData.location && (
+                    <Marker
+                      coordinate={{
+                        latitude: sensorData.location.latitude,
+                        longitude: sensorData.location.longitude,
+                      }}
+                      title="Current Location"
+                    />
+                  )}
+                </MapView>
               </View>
               <View style={styles.container}>
                 <View style={styles.container}>
                   <Text style={styles.text}>Speed: </Text>
-                  <Text style={styles.text}>3 km/h</Text>
+                  <Text style={styles.text}>{sensorData.speed ?? '--'}km/h</Text>
                 </View>
               </View>
               <View style={styles.container}>
                 <View style={styles.container}>
                   <Text style={styles.text}>Temperature: </Text>
-                  <Text style={styles.text}>20°</Text>
+                  <Text style={styles.text}>{sensorData.temperature ?? '--'}°</Text>
                 </View>
                 <View style={styles.container}>
                   <Text style={styles.text}>Humidity: </Text>
-                  <Text style={styles.text}>43%</Text>
+                  <Text style={styles.text}>{sensorData.humidity ?? '--'}%</Text>
                 </View>
               </View>
             </View>
