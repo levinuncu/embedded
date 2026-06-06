@@ -21,7 +21,7 @@ interface SensorData {
     speed: number | null;
     temperature: number | null;
     humidity: number | null;
-    location: { latitude: number; longitude: number } | null;
+    location: { latitude: number | null; longitude: number | null } | null;
     imu: {
         acc_x: number;
         acc_y: number;
@@ -45,15 +45,6 @@ interface BluetoothLowEnergyApi {
 }
 
 const INVALID_U32 = 0xffffffff;
-const INVALID_U64_HIGH = 0xffffffff;
-const INVALID_U64_LOW = 0xffffffff;
-
-function decodeCoordinate(raw: number): number {
-    const MSB = 0x80000000;
-    const value = raw & ~MSB;
-    const isNegative = (raw & MSB) !== 0;
-    return isNegative ? -value / 1e7 : value / 1e7;
-}
 
 function base64ToUint8Array(base64: string): Uint8Array {
     const binaryString = atob(base64);
@@ -70,20 +61,18 @@ function parseSensorReading(buffer: ArrayBuffer, offset: number): SensorData | n
 
     const longitudeRaw = view.getUint32(0, true);
     const latitudeRaw = view.getUint32(4, true);
-    const timestampLow = view.getUint32(8, true);
-    const timestampHigh = view.getUint32(12, true);
+    const timestamp = view.getBigUint64(8, true);
 
     if (
         longitudeRaw === INVALID_U32 ||
         latitudeRaw === INVALID_U32 ||
-        (timestampHigh === INVALID_U64_HIGH && timestampLow === INVALID_U64_LOW)
+        timestamp === BigInt('0xffffffffffffffff')
     ) {
         return null;
     }
 
-    const longitude = decodeCoordinate(longitudeRaw);
-    const latitude = decodeCoordinate(latitudeRaw);
-    const timestamp = timestampHigh * 2 ** 32 + timestampLow;
+    const longitude = decodeLongitude(longitudeRaw);
+    const latitude = decodeLatitude(latitudeRaw);
 
     const acc_x = view.getInt8(16);
     const acc_y = view.getInt8(17);
@@ -102,8 +91,32 @@ function parseSensorReading(buffer: ArrayBuffer, offset: number): SensorData | n
         humidity,
         location: { latitude, longitude },
         imu: { acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z },
-        timestamp,
+        timestamp: Number(timestamp),
     };
+}
+
+function decodeLongitude(raw: number): number | null {
+    if (raw === INVALID_U32) return null;
+    const SIGN_BIT = 0x80000000;
+    const VALUE_MASK = 0x7fffffff;
+    const COORDINATE_SCALE = 1e7;
+
+    const isWest = (raw & SIGN_BIT) !== 0;
+    const magnitude = raw & VALUE_MASK;
+    const value = magnitude / COORDINATE_SCALE;
+    return isWest ? -value : value;
+}
+
+function decodeLatitude(raw: number): number | null {
+    if (raw === INVALID_U32) return null;
+    const SIGN_BIT = 0x80000000;
+    const VALUE_MASK = 0x7fffffff;
+    const COORDINATE_SCALE = 1e7;
+
+    const isSouth = (raw & SIGN_BIT) !== 0;
+    const magnitude = raw & VALUE_MASK;
+    const value = magnitude / COORDINATE_SCALE;
+    return isSouth ? -value : value;
 }
 
 function useBLE(): BluetoothLowEnergyApi {
@@ -202,6 +215,9 @@ function useBLE(): BluetoothLowEnergyApi {
 
         const bytes = base64ToUint8Array(characteristic.value);
 
+        console.log('Characteristic value (base64):', characteristic.value);
+        console.log('Decoded bytes length:', bytes.length);
+
         if (bytes.length < 32 || bytes.length % 32 !== 0) {
             console.warn('Invalid data length:', bytes.length);
             return;
@@ -234,7 +250,6 @@ function useBLE(): BluetoothLowEnergyApi {
         console.log('Received bytes length:', bytes.length);
         console.log('Raw data (hex):', Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join(' '));
     }, []);
-
 
     const startStreamingData = useCallback(async (device: Device) => {
         if (device) {
