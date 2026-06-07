@@ -189,7 +189,7 @@ function useBLE(): BluetoothLowEnergyApi {
 
     const connectToDevice = async (device: Device) => {
         try {
-            const deviceConnection = await bleManager.connectToDevice(device.id);
+            const deviceConnection = await bleManager.connectToDevice(device.id, { requestMTU: 224 });
             setConnectedDevice(deviceConnection);
             await deviceConnection.discoverAllServicesAndCharacteristics();
             stopScanningForDevices();
@@ -214,6 +214,10 @@ function useBLE(): BluetoothLowEnergyApi {
         }
 
         const bytes = base64ToUint8Array(characteristic.value);
+
+        if (bytes.every(b => b === 0)) {
+            return; // skips empty data bytes
+        }
 
         console.log('Characteristic value (base64):', characteristic.value);
         console.log('Decoded bytes length:', bytes.length);
@@ -246,9 +250,6 @@ function useBLE(): BluetoothLowEnergyApi {
         if (readings.length > 0) {
             setSensorData(readings[0]); // update with first valid reading
         }
-
-        console.log('Received bytes length:', bytes.length);
-        console.log('Raw data (hex):', Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join(' '));
     }, []);
 
     const startStreamingData = useCallback(async (device: Device) => {
