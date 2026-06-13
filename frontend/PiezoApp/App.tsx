@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Button, View, Text, Alert, Platform, TouchableOpacity } from 'react-native';
-import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
+import { StyleSheet, View, Text, Alert, TouchableOpacity } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import DeviceModal from './DeviceConnectionModal';
 import useBLE from './useBLE';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
@@ -16,6 +16,7 @@ const App = () => {
     scanForPeripherals,
     allDevices,
     connectToDevice,
+    reconnectToDevice,
     connectedDevice,
     disconnectFromDevice,
     sensorData,
@@ -51,38 +52,43 @@ const App = () => {
   useEffect(() => {
     if (sensorData.location) {
       setRegion({
-        latitude: sensorData.location.latitude,
-        longitude: sensorData.location.longitude,
+        latitude: 41,
+        longitude: 41,
+        // latitude: sensorData.location.latitude,
+        // longitude: sensorData.location.longitude,
         latitudeDelta: 0.01,
         longitudeDelta: 0.01,
       });
     }
   }, [sensorData.location]);
 
+  const last = sensorData.lastUpdatedAt;
+
   return (
     <SafeAreaProvider style={styles.provider}>
       <Text style={styles.headerTitle}>
         Piezo Fly App
       </Text>
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View>
           {connectedDevice ? (
-            <Text style={styles.text}>Your connected Device is: {connectedDevice.name}</Text>
+            <Text style={styles.textAbove}>Your connected Device is: {connectedDevice.name}</Text>
           ) : (
-            <Text style={styles.text}>Connect to a sensor</Text>
+            <Text style={styles.textAbove}>Connect to a sensor</Text>
           )}
         </View>
         <TouchableOpacity style={styles.connectButton}
           onPress={connectedDevice ? disconnectFromDevice : openModal}>
           <Text style={styles.buttonText}>{connectedDevice ? 'Disconnect' : 'Connect'}</Text>
         </TouchableOpacity>
-      </SafeAreaView>
-      <SafeAreaView style={styles.dataContainer}>
-        <View>
-          {connectedDevice ? (
-            <View>
+      </View>
+      <View style={styles.dataContainer}>
+        {connectedDevice ? (
+          <View>
+            <View style={styles.container}>
+              <Text style={styles.text}>Location data: </Text>
               <View style={styles.locationContainer}>
-                <Text style={styles.text}>Location data: </Text>
+
                 <MapView
                   provider={PROVIDER_GOOGLE}
                   style={styles.map}
@@ -92,36 +98,47 @@ const App = () => {
                   {sensorData.location && (
                     <Marker
                       coordinate={{
-                        latitude: sensorData.location.latitude,
-                        longitude: sensorData.location.longitude,
+                        latitude: 41,
+                        longitude: 41,
+                        // latitude: sensorData.location.latitude,
+                        // longitude: sensorData.location.longitude,
                       }}
                       title="Current Location"
                     />
                   )}
                 </MapView>
               </View>
+            </View>
+            <View style={styles.container}>
               <View style={styles.container}>
-                <View style={styles.container}>
-                  <Text style={styles.text}>Speed: </Text>
-                  <Text style={styles.text}>{sensorData.speed ?? '--'}km/h</Text>
-                </View>
-              </View>
-              <View style={styles.container}>
-                <View style={styles.container}>
-                  <Text style={styles.text}>Temperature: </Text>
-                  <Text style={styles.text}>{sensorData.temperature ?? '--'}°</Text>
-                </View>
-                <View style={styles.container}>
-                  <Text style={styles.text}>Humidity: </Text>
-                  <Text style={styles.text}>{sensorData.humidity ?? '--'}%</Text>
-                </View>
+                <Text style={styles.text}>Speed: </Text>
+                <Text style={styles.text}>{sensorData.speed ?? '--'}km/h</Text>
               </View>
             </View>
-          ) : (
-            <Text style={styles.placeholderText}>Connect to a sensor to see data</Text>
-          )}
-        </View>
-      </SafeAreaView>
+            <View style={styles.container}>
+              <View style={styles.container}>
+                <Text style={styles.text}>Temperature: </Text>
+                <Text style={styles.text}>{sensorData.temperature ?? '--'}°</Text>
+              </View>
+              <View style={styles.container}>
+                <Text style={styles.text}>Humidity: </Text>
+                <Text style={styles.text}>{sensorData.humidity ?? '--'}%</Text>
+              </View>
+            </View>
+            <View style={styles.container}>
+              <Text style={styles.lowOpacityText}>Last updated: </Text>
+              <Text style={styles.lowOpacityText}>{last?.getUTCHours()}:{last?.getUTCMinutes()} - {last?.getUTCDate()}.{last?.getUTCMonth()}.{last?.getUTCFullYear()}</Text>
+              <TouchableOpacity style={styles.reconnectButton}
+                onPress={() => reconnectToDevice(connectedDevice)}
+              >
+                <Text style={styles.buttonText}>Reload</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <Text style={styles.lowOpacityText}>Connect to a sensor to see data</Text>
+        )}
+      </View>
 
       <DeviceModal
         closeModal={hideModal}
@@ -139,7 +156,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     alignItems: 'flex-start',
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
     marginTop: 50,
     marginLeft: 20,
@@ -147,34 +164,39 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginVertical: 10,
     justifyContent: 'space-between',
   },
   dataContainer: {
     flexDirection: 'row',
-    alignContent: 'space-between',
+    marginHorizontal: 20,
+    justifyContent: 'space-evenly'
   },
   locationContainer: {
     flexDirection: 'column',
     alignItems: 'center',
-    alignContent: 'space-between',
   },
   map: {
     width: '100%',
     height: '60%',
   },
-  text: {
+  textAbove: {
     textAlign: 'center',
+    fontSize: 16,
     marginVertical: 8,
     marginHorizontal: 20,
   },
-  placeholderText: {
+  text: {
     textAlign: 'center',
+    fontSize: 16,
     marginVertical: 8,
-    marginHorizontal: 20,
+  },
+  lowOpacityText: {
+    textAlign: 'center',
     opacity: 0.2,
   },
   buttonText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 'bold',
     color: 'white',
   },
@@ -184,6 +206,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     height: 35,
     marginHorizontal: 20,
+    marginBottom: 5,
+    marginTop: 5,
+    borderRadius: 8,
+    paddingLeft: 20,
+    paddingRight: 20,
+  },
+  reconnectButton: {
+    backgroundColor: '#c9094fcb',
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: 35,
+    marginLeft: 130,
     marginBottom: 5,
     marginTop: 5,
     borderRadius: 8,

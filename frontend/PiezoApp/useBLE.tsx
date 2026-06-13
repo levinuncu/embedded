@@ -31,16 +31,17 @@ interface SensorData {
         gyro_z: number;
     } | null;
     timestamp: number | null;
+    lastUpdatedAt: Date | null;
 }
 
 interface BluetoothLowEnergyApi {
     requestPermissions(cb: VoidCallback): Promise<void>;
     scanForPeripherals(): void;
     connectToDevice: (deviceId: Device) => Promise<void>;
+    reconnectToDevice: (deviceId: Device) => Promise<void>;
     disconnectFromDevice: () => void;
     connectedDevice: Device | null;
     allDevices: Device[];
-    connectedSensors: number;
     sensorData: SensorData;
 }
 
@@ -63,14 +64,6 @@ function parseSensorReading(buffer: ArrayBuffer, offset: number): SensorData | n
     const latitudeRaw = view.getUint32(4, true);
     const timestamp = view.getBigUint64(8, true);
 
-    if (
-        longitudeRaw === INVALID_U32 ||
-        latitudeRaw === INVALID_U32 ||
-        timestamp === BigInt('0xffffffffffffffff')
-    ) {
-        return null;
-    }
-
     const longitude = decodeLongitude(longitudeRaw);
     const latitude = decodeLatitude(latitudeRaw);
 
@@ -85,6 +78,8 @@ function parseSensorReading(buffer: ArrayBuffer, offset: number): SensorData | n
     const humidity = view.getUint8(26);
     const temperature = view.getInt8(27);
 
+    const lastUpdatedAt = new Date();
+
     return {
         speed: null, // TODO: calculate speed if needed
         temperature,
@@ -92,6 +87,7 @@ function parseSensorReading(buffer: ArrayBuffer, offset: number): SensorData | n
         location: { latitude, longitude },
         imu: { acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z },
         timestamp: Number(timestamp),
+        lastUpdatedAt,
     };
 }
 
@@ -122,7 +118,6 @@ function decodeLatitude(raw: number): number | null {
 function useBLE(): BluetoothLowEnergyApi {
     const [allDevices, setAllDevices] = useState<Device[]>([]);
     const [connectedDevice, setConnectedDevice] = useState<Device | null>(null);
-    const [connectedSensors, setConnectedSensors] = useState<number>(0);
     const [sensorData, setSensorData] = useState<SensorData>({
         speed: null,
         temperature: null,
@@ -130,6 +125,7 @@ function useBLE(): BluetoothLowEnergyApi {
         location: null,
         imu: null,
         timestamp: null,
+        lastUpdatedAt: null,
     });
 
     const requestPermissions = useCallback(async (cb: VoidCallback) => {
@@ -173,10 +169,10 @@ function useBLE(): BluetoothLowEnergyApi {
     const scanForPeripherals = useCallback(() => {
         bleManager.startDeviceScan(null, null, (error, device) => {
             if (error) {
-                console.log(error);
+                console.log('scan error:', error);
             }
             if (device && device.name?.includes('piezo')) {
-                console.log('DEVICE FOUND');
+                console.log('device found');
                 setAllDevices(prevState => {
                     if (!isDuplicateDevice(prevState, device)) {
                         return [...prevState, device];
@@ -189,19 +185,28 @@ function useBLE(): BluetoothLowEnergyApi {
 
     const connectToDevice = async (device: Device) => {
         try {
+            console.log('connecting');
             const deviceConnection = await bleManager.connectToDevice(device.id, { requestMTU: 224 });
             setConnectedDevice(deviceConnection);
             await deviceConnection.discoverAllServicesAndCharacteristics();
-            stopScanningForDevices();
-            startStreamingData(deviceConnection);
+            bleManager.stopDeviceScan();
+            getData(deviceConnection);
         } catch (e) {
             console.log('FAILED TO CONNECT', e);
         }
     };
 
-    const stopScanningForDevices = useCallback(() => {
-        bleManager.stopDeviceScan();
-    }, []);
+    const reconnectToDevice = async (device: Device) => {
+        try {
+            console.log('reconnecting');
+            const deviceConnection = await bleManager.connectToDevice(device.id, { requestMTU: 224 });
+            setConnectedDevice(deviceConnection);
+            await deviceConnection.discoverAllServicesAndCharacteristics();
+            getData(deviceConnection);
+        } catch (e) {
+            console.warn('FAILED TO RECONNECT', e);
+        }
+    };
 
     const onConnectedSensorsUpdate = useCallback((error: BleError | null, characteristic: Characteristic | null) => {
         if (error) {
@@ -209,7 +214,7 @@ function useBLE(): BluetoothLowEnergyApi {
             return;
         }
         if (!characteristic?.value) {
-            console.log('No Data was received');
+            console.log('no data received');
             return;
         }
 
@@ -219,8 +224,7 @@ function useBLE(): BluetoothLowEnergyApi {
             return; // skips empty data bytes
         }
 
-        console.log('Characteristic value (base64):', characteristic.value);
-        console.log('Decoded bytes length:', bytes.length);
+        console.log('data received');
 
         if (bytes.length < 32 || bytes.length % 32 !== 0) {
             console.warn('Invalid data length:', bytes.length);
@@ -252,7 +256,7 @@ function useBLE(): BluetoothLowEnergyApi {
         }
     }, []);
 
-    const startStreamingData = useCallback(async (device: Device) => {
+    const getData = useCallback(async (device: Device) => {
         if (device) {
             device.monitorCharacteristicForService(
                 SENSOR_UUID,
@@ -260,13 +264,13 @@ function useBLE(): BluetoothLowEnergyApi {
                 (error, characteristic) => onConnectedSensorsUpdate(error, characteristic),
             );
         } else {
-            console.log('No Device Connected');
+            console.log('no device connected');
         }
     }, [onConnectedSensorsUpdate]);
 
     const disconnectFromDevice = useCallback(() => {
         if (connectedDevice) {
-            bleManager.cancelDeviceConnection(connectedDevice.id);
+            // bleManager.cancelDeviceConnection(connectedDevice.id);
             setConnectedDevice(null);
             console.log('disconnected: ', connectedDevice.name);
         }
@@ -276,10 +280,10 @@ function useBLE(): BluetoothLowEnergyApi {
         scanForPeripherals,
         requestPermissions,
         connectToDevice,
+        reconnectToDevice,
         allDevices,
         connectedDevice,
         disconnectFromDevice,
-        connectedSensors,
         sensorData,
     };
 }

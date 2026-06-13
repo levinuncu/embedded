@@ -4,7 +4,7 @@
     "slug": "PiezoApp",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/piezo-fly.png",
     "userInterfaceStyle": "light",
     "plugins": [
       "react-native-ble-plx",
@@ -18,7 +18,7 @@
     ],
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/piezo-fly.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -28,7 +28,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/piezo-fly.png",
         "backgroundColor": "#ffffff"
       },
       "predictiveBackGestureEnabled": false,
@@ -43,7 +43,7 @@
       "package": "com.anonymous.PiezoApp"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/piezo-fly.png"
     },
     "extra": {
       "eas": {

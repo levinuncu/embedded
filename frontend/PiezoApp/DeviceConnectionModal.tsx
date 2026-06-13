@@ -2,13 +2,13 @@ import React, { FC, useCallback } from 'react';
 import {
     FlatList,
     Modal,
-    SafeAreaView,
     Text,
     StyleSheet,
     TouchableOpacity,
     ListRenderItemInfo,
+    View,
 } from 'react-native';
-import { Base64, BleError, ConnectionPriority, Descriptor, Device, Subscription } from 'react-native-ble-plx';
+import { Device } from 'react-native-ble-plx';
 
 type DeviceModalListItemProps = {
     item: ListRenderItemInfo<Device>;
@@ -62,7 +62,7 @@ const DeviceModal: FC<DeviceModalProps> = props => {
             animationType="slide"
             transparent={false}
             visible={visible}>
-            <SafeAreaView style={styles.modalTitle}>
+            <View style={styles.modalTitle}>
                 <TouchableOpacity style={styles.closeButton}
                     onPress={closeModal}>
                     <Text style={styles.buttonText}>x</Text>
@@ -75,7 +75,7 @@ const DeviceModal: FC<DeviceModalProps> = props => {
                     data={devices}
                     renderItem={renderDeviceModalListItem}
                 />
-            </SafeAreaView>
+            </View>
         </Modal>
     );
 };
@@ -104,19 +104,20 @@ const styles = StyleSheet.create({
     modalTitleText: {
         justifyContent: 'flex-start',
         marginBottom: 20,
-        fontSize: 18,
+        fontSize: 24,
         fontWeight: 'bold',
         marginHorizontal: 20,
         textAlign: 'left',
     },
     buttonText: {
-        fontSize: 22,
+        fontSize: 20,
         fontWeight: 'bold',
         fontFamily: 'copperplate',
     },
     closeButton: {
         justifyContent: 'flex-end',
         alignItems: 'flex-end',
+        height: 20,
         marginTop: 50,
         marginHorizontal: 20,
     },
