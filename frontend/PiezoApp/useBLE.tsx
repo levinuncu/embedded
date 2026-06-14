@@ -80,6 +80,9 @@ function parseSensorReading(buffer: ArrayBuffer, offset: number): SensorData | n
 
     const lastUpdatedAt = new Date();
 
+    console.log('latitude', latitude);
+    console.log('longitude', longitude);
+
     return {
         speed: null, // TODO: calculate speed if needed
         temperature,

@@ -22,14 +22,6 @@ const App = () => {
     sensorData,
   } = useBLE();
 
-  const [region, setRegion] = useState({
-    latitude: 0,
-    longitude: 0,
-    // for zoom:
-    latitudeDelta: 0,
-    longitudeDelta: 0,
-  });
-
   const scanForDevices = () => {
     requestPermissions((isGranted: any) => {
       if (isGranted) {
@@ -49,15 +41,26 @@ const App = () => {
     setIsModalVisible(true);
   }
 
+  const [region, setRegion] = useState({
+    // HHN location
+    latitude: 49.122044,
+    longitude: 9.211371,
+    // for zoom:
+    latitudeDelta: 0.001,
+    longitudeDelta: 0.001,
+  });
+
   useEffect(() => {
-    if (sensorData.location) {
+    if (
+      sensorData.location &&
+      sensorData.location.latitude !== null &&
+      sensorData.location.longitude !== null
+    ) {
       setRegion({
-        latitude: 41,
-        longitude: 41,
-        // latitude: sensorData.location.latitude,
-        // longitude: sensorData.location.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
+        latitude: sensorData.location.latitude,
+        longitude: sensorData.location.longitude,
+        latitudeDelta: 0.001,
+        longitudeDelta: 0.001,
       });
     }
   }, [sensorData.location]);
@@ -87,27 +90,27 @@ const App = () => {
           <View>
             <View style={styles.container}>
               <Text style={styles.text}>Location data: </Text>
-              <View style={styles.locationContainer}>
-
-                <MapView
-                  provider={PROVIDER_GOOGLE}
-                  style={styles.map}
-                  region={region}
-                  onRegionChangeComplete={setRegion}
-                >
-                  {sensorData.location && (
+              <Text style={styles.lowOpacityText}>{sensorData?.location?.latitude} {sensorData?.location?.longitude}</Text>
+            </View>
+            <View>
+              <MapView
+                provider={PROVIDER_GOOGLE}
+                style={styles.map}
+                region={region}
+                onRegionChangeComplete={setRegion}
+              >
+                {sensorData.location &&
+                  sensorData.location.latitude !== null &&
+                  sensorData.location.longitude !== null && (
                     <Marker
                       coordinate={{
-                        latitude: 41,
-                        longitude: 41,
-                        // latitude: sensorData.location.latitude,
-                        // longitude: sensorData.location.longitude,
+                        latitude: sensorData.location.latitude,
+                        longitude: sensorData.location.longitude,
                       }}
                       title="Current Location"
                     />
                   )}
-                </MapView>
-              </View>
+              </MapView>
             </View>
             <View style={styles.container}>
               <View style={styles.container}>
@@ -164,17 +167,13 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 10,
+    marginVertical: 5,
     justifyContent: 'space-between',
   },
   dataContainer: {
     flexDirection: 'row',
     marginHorizontal: 20,
     justifyContent: 'space-evenly'
-  },
-  locationContainer: {
-    flexDirection: 'column',
-    alignItems: 'center',
   },
   map: {
     width: '100%',
