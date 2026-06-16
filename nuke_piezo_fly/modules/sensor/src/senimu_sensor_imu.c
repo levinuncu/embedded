@@ -128,6 +128,7 @@ senaty_ImuSensorReading senimu_ReadData(void) {
   };
 
   if (!initialized) {
+    ESP_LOGE(kLoggerTag, "Failed to read: not initialized");
     return kFailedReading;
   }
 
@@ -154,6 +155,6 @@ senaty_ImuSensorReading senimu_ReadData(void) {
 		.gyroscope_z = (int16_t)gyroscope.gyro_z,
   };
 	
-  ESP_LOGI(kLoggerTag, "Read sensor data");
+  ESP_LOGI(kLoggerTag, "Read sensor data, Acceleration X: %i, Acceleration Y: %i, Acceleration Z: %i, Gyroscope X: %i, Gyroscope Y: %i, Gyroscope Z: %i", reading.acceleration_x, reading.acceleration_y, reading.acceleration_z, reading.gyroscope_x, reading.gyroscope_y, reading.gyroscope_z);
   return reading;
 }

@@ -27,9 +27,9 @@ typedef struct {
   /**
    * @brief Timestamp of the reading [ms].
    * 
-   * A value of UINT32_MAX indicates that the timestamp could not be read.
+   * A value of UINT64_MAX indicates that the timestamp could not be read.
    */
-  uint32_t timestamp;
+  uint64_t timestamp;
 } senaty_GnssSensorReading;
 
 /**
