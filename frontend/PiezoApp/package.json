@@ -9,6 +9,7 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "@react-native-async-storage/async-storage": "^3.1.1",
     "eas-cli": "^18.13.1",
     "expo": "^55.0.24",
     "expo-dev-client": "~55.0.35",
@@ -28,6 +29,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
+    "@react-native-community/cli": "latest",
     "@types/react": "^19.2.14",
     "typescript": "^5.9.3"
   },
@@ -36,10 +38,11 @@
     "ajv": "8.18.0",
     "diff": "4.0.4",
     "joi": "17.13.4",
+    "js-yaml": "^4.2.0",
     "minimatch": "10.2.3",
     "node-forge": "1.4.0",
     "postcss": "8.5.10",
-    "tar": "7.5.11",
+    "tar": "^7.5.16",
     "uuid": "14.0.0",
     "yaml": "2.8.3"
   },

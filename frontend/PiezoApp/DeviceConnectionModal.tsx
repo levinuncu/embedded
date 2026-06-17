@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
         marginHorizontal: 20,
     },
     ctaButton: {
-        backgroundColor: '#c9094fcb',
+        backgroundColor: 'rgb(140,190,7)',
         justifyContent: 'center',
         alignItems: 'center',
         height: 40,

@@ -9,6 +9,7 @@ import {
 } from 'react-native-ble-plx';
 import { PERMISSIONS, requestMultiple } from 'react-native-permissions';
 import DeviceInfo from 'react-native-device-info';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const SENSOR_UUID = '0000fff0-0000-1000-8000-00805f9b34fb';
 const SENSOR_CHARACTERISTIC = '0000fff1-0000-1000-8000-00805f9b34fb';
@@ -19,6 +20,10 @@ type VoidCallback = (result: boolean) => void;
 
 interface SensorData {
     speed: number | null;
+    avgSpeed: number | null;
+    distance: number | null;
+    startTime: number | null;
+    elapsedTime: number;
     temperature: number | null;
     humidity: number | null;
     location: { latitude: number | null; longitude: number | null } | null;
@@ -32,17 +37,24 @@ interface SensorData {
     } | null;
     timestamp: number | null;
     lastUpdatedAt: Date | null;
+    isRunning: boolean;
 }
 
 interface BluetoothLowEnergyApi {
     requestPermissions(cb: VoidCallback): Promise<void>;
     scanForPeripherals(): void;
     connectToDevice: (deviceId: Device) => Promise<void>;
-    reconnectToDevice: (deviceId: Device) => Promise<void>;
+    reconnectToDevice: (deviceId: string) => Promise<void>;
     disconnectFromDevice: () => void;
     connectedDevice: Device | null;
     allDevices: Device[];
     sensorData: SensorData;
+    setSensorData: React.Dispatch<React.SetStateAction<SensorData>>;
+    startStopRun: (deviceId: Device) => Promise<void>;
+    formatElapsedTime: (ms: number) => string;
+    loadLastSensorData: () => Promise<SensorData | null>;
+    loadLastConnectedDevice: () => Promise<{ id: string; name: string } | null>;
+    saveSensorData: (data: SensorData) => Promise<void>;
 }
 
 const INVALID_U32 = 0xffffffff;
@@ -85,12 +97,16 @@ function parseSensorReading(buffer: ArrayBuffer, offset: number): SensorData | n
 
     return {
         speed: null, // TODO: calculate speed if needed
+        avgSpeed: null,
+        distance: null,
+        movingTime: null,
         temperature,
         humidity,
         location: { latitude, longitude },
         imu: { acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z },
         timestamp: Number(timestamp),
         lastUpdatedAt,
+        isRunning: false,
     };
 }
 
@@ -123,12 +139,17 @@ function useBLE(): BluetoothLowEnergyApi {
     const [connectedDevice, setConnectedDevice] = useState<Device | null>(null);
     const [sensorData, setSensorData] = useState<SensorData>({
         speed: null,
+        avgSpeed: null,
+        distance: null,
+        startTime: null,
+        elapsedTime: 0,
         temperature: null,
         humidity: null,
         location: null,
         imu: null,
         timestamp: null,
         lastUpdatedAt: null,
+        isRunning: false,
     });
 
     const requestPermissions = useCallback(async (cb: VoidCallback) => {
@@ -194,20 +215,27 @@ function useBLE(): BluetoothLowEnergyApi {
             await deviceConnection.discoverAllServicesAndCharacteristics();
             bleManager.stopDeviceScan();
             getData(deviceConnection);
+            saveDeviceInfo(device);
         } catch (e) {
             console.log('FAILED TO CONNECT', e);
         }
     };
 
-    const reconnectToDevice = async (device: Device) => {
+    const reconnectToDevice = async (deviceId: string) => {
         try {
-            console.log('reconnecting');
-            const deviceConnection = await bleManager.connectToDevice(device.id, { requestMTU: 224 });
-            setConnectedDevice(deviceConnection);
-            await deviceConnection.discoverAllServicesAndCharacteristics();
-            getData(deviceConnection);
+            const device = allDevices.find(d => d.id === deviceId);
+            if (device) {
+                await connectToDevice(device);
+            } else {
+                await scanForPeripherals();
+                const foundDevice = allDevices.find(d => d.id === deviceId);
+                if (foundDevice) {
+                    await connectToDevice(foundDevice);
+                    bleManager.stopDeviceScan();
+                }
+            }
         } catch (e) {
-            console.warn('FAILED TO RECONNECT', e);
+            console.error('Failed to reconnect to device', e);
         }
     };
 
@@ -254,8 +282,11 @@ function useBLE(): BluetoothLowEnergyApi {
             }
         }
 
+        console.log('READINGS', readings);
+
         if (readings.length > 0) {
             setSensorData(readings[0]); // update with first valid reading
+            saveSensorData(readings[0]); // saves locally
         }
     }, []);
 
@@ -273,11 +304,78 @@ function useBLE(): BluetoothLowEnergyApi {
 
     const disconnectFromDevice = useCallback(() => {
         if (connectedDevice) {
-            // bleManager.cancelDeviceConnection(connectedDevice.id);
+            bleManager.cancelDeviceConnection(connectedDevice.id);
             setConnectedDevice(null);
             console.log('disconnected: ', connectedDevice.name);
         }
     }, [connectedDevice]);
+
+    const startStopRun = async (device: Device) => {
+        setSensorData(prev => {
+            if (!prev.isRunning) {
+                return {
+                    ...prev,
+                    isRunning: true,
+                    startTime: Date.now(),
+                    elapsedTime: 0,
+                };
+            } else {
+                return {
+                    ...prev,
+                    isRunning: false,
+                    startTime: null,
+                };
+            }
+        });
+    };
+
+
+
+    function formatElapsedTime(ms: number): string {
+        const totalSeconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }
+
+    const saveSensorData = async (data: SensorData) => {
+        try {
+            await AsyncStorage.setItem('@lastSensorData', JSON.stringify(data));
+        } catch (e) {
+            console.error('Failed to save sensor data', e);
+        }
+    };
+
+    const saveDeviceInfo = async (device: Device) => {
+        try {
+            await AsyncStorage.setItem('@lastConnectedDevice', JSON.stringify({
+                id: device.id,
+                name: device.name,
+            }));
+        } catch (e) {
+            console.error('Failed to save device info', e);
+        }
+    };
+
+    const loadLastSensorData = async () => {
+        try {
+            const jsonValue = await AsyncStorage.getItem('@lastSensorData');
+            return jsonValue != null ? JSON.parse(jsonValue) : null;
+        } catch (e) {
+            console.error('Failed to load sensor data', e);
+            return null;
+        }
+    };
+
+    const loadLastConnectedDevice = async () => {
+        try {
+            const jsonValue = await AsyncStorage.getItem('@lastConnectedDevice');
+            return jsonValue != null ? JSON.parse(jsonValue) : null;
+        } catch (e) {
+            console.error('Failed to load device info', e);
+            return null;
+        }
+    };
 
     return {
         scanForPeripherals,
@@ -288,6 +386,12 @@ function useBLE(): BluetoothLowEnergyApi {
         connectedDevice,
         disconnectFromDevice,
         sensorData,
+        setSensorData,
+        startStopRun,
+        formatElapsedTime,
+        loadLastSensorData,
+        loadLastConnectedDevice,
+        saveSensorData,
     };
 }
 
