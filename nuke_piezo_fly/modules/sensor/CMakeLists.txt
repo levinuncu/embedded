@@ -4,6 +4,7 @@ idf_component_register(
         "src/sengns_sensor_gnss.c"
         "src/senimu_sensor_imu.c"
         "src/sentem_sensor_temperature.c"
+        "src/sencur_sensor_current.c"    
 
     INCLUDE_DIRS
         "include"
@@ -15,5 +16,5 @@ idf_component_register(
         esp_driver_i2c 
     
     PRIV_REQUIRES
-        esp_driver_gpio esp_driver_uart esp_timer mpu6050
+        esp_driver_gpio esp_adc esp_driver_uart esp_timer mpu6050
 )
