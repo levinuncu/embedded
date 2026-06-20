@@ -100,9 +100,9 @@ typedef struct {
   /**
    * @brief Current [mA].
    * 
-   * A value of UINT16_MAX indicates that the temperature could not be read.
+   * A value of INT16_MAX indicates that the current could not be read.
    */
-	uint16_t current;
+	int16_t current;
 } senaty_CurrentSensorReading;
 
 /**

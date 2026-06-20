@@ -97,17 +97,22 @@ senaty_GnssSensorReading sengns_ReadData(void) {
     return kFailedReading;
   }
 
-  uint8_t nmea_strings[UART_BUFFER_SIZE] = {0};
-	const int bytes_read = uart_read_bytes(configuration.uart_port, nmea_strings, UART_BUFFER_SIZE - 1, UART_TIMEOUT_MS / portTICK_PERIOD_MS);
+	uint8_t buffer[UART_BUFFER_SIZE] = {0};
+	int bytes_read = uart_read_bytes(
+			configuration.uart_port,
+			buffer,
+			UART_BUFFER_SIZE - 1,
+			UART_TIMEOUT_MS / portTICK_PERIOD_MS
+	);
 	if (bytes_read <= 0) {
-		ESP_LOGE(kLoggerTag, "Sensor send no data");
+		ESP_LOGE(kLoggerTag, "Sensor sent no data");
 		return kFailedReading;
 	}
   
-  nmea_strings[bytes_read] = '\0';
+  buffer[bytes_read] = '\0';
 
 	GnrmcFields fields = {0};
-	if (!ParseGNRMC((const char *)nmea_strings, &fields)) {
+	if (!ParseGNRMC((const char *)buffer, &fields)) {
 		ESP_LOGE(kLoggerTag, "Parsing of data failed");
 		return kFailedReading;
 	}
@@ -133,158 +138,146 @@ senaty_GnssSensorReading sengns_ReadData(void) {
   return reading;
 }
 
-static bool ParseGNRMC(const char *const nmea_strings, GnrmcFields *const fields) {
-	const char *start = strstr(nmea_strings, "$GNRMC,");
-	if (start == NULL) {
-		ESP_LOGE(kLoggerTag, "Start of string is null");
-		return false;
+static bool ParseGNRMC(const char *const nmea, GnrmcFields *const fields) {
+	const char *start = strstr(nmea, "RMC,");
+	if (!start) {
+			ESP_LOGE(kLoggerTag, "No RMC sentence found");
+			return false;
 	}
 
-	const char *end = strstr(start, "\r\n");
-	const size_t line_length = (end != NULL) ? (size_t)(end - start) : strlen(start);
-	if ((line_length == 0U) || (line_length >= 127U)) {
-		ESP_LOGE(kLoggerTag, "Line length is invalid");
-		return false;
+	size_t len = strcspn(start, "\r\n");
+	if (len == 0 || len >= 128) {
+			ESP_LOGE(kLoggerTag, "Invalid sentence length");
+			return false;
 	}
 
-	char sentence[128] = {0};
-	memcpy(sentence, start, line_length);
-	sentence[line_length] = '\0';
+	char sentence[128];
+	memcpy(sentence, start, len);
+	sentence[len] = '\0';
 
-	fields->latitude_raw = -1;
-	fields->longitude_raw = -1;
+	char *saveptr = NULL;
+	char *token = strtok_r(sentence, ",", &saveptr);
 
-	double time_raw = -1;
+	int index = 0;
+
+	double time_raw = NAN;
 	int date_raw = -1;
-	char status = 'Z';
-	int token_index = 0;
-	char *token = strtok(sentence, ",");
+	char status = 'V';
+
+	double lat = NAN;
+	double lon = NAN;
+	char lat_dir = 0;
+	char lon_dir = 0;
+
 	while (token != NULL) {
-		switch (token_index) {
-			case 0:
-				time_raw = strtod(token, NULL);
-				break;
-			case 1:
-				status = token[0];
-				break;
-			case 2:
-				fields->latitude_raw = strtod(token, NULL);
-				break;
-			case 3:
-				fields->latitude_direction = token[0];
-				break;
-			case 4:
-				fields->longitude_raw = strtod(token, NULL);
-				break;
-			case 5:
-				fields->longitude_direction = token[0];
-				break;
-			case 8:
-				date_raw = atoi(token);
-				break;
-			default:
-				break;
+		switch (index) {
+			case 1: time_raw = strtod(token, NULL); break;
+			case 2: status = token[0]; break;
+			case 3: lat = strtod(token, NULL); break;
+			case 4: lat_dir = token[0]; break;
+			case 5: lon = strtod(token, NULL); break;
+			case 6: lon_dir = token[0]; break;
+			case 9: date_raw = atoi(token); break;
 		}
 
-		++token_index;
-		token = strtok(NULL, ",");
+		token = strtok_r(NULL, ",", &saveptr);
+		index++;
 	}
 
 	if (status != 'A') {
-		ESP_LOGE(kLoggerTag, "Status is not A");
-		return false;
+			ESP_LOGW(kLoggerTag, "No valid GPS fix (status != A)");
+			return false;
 	}
 
-	if ((date_raw == -1) || (time_raw == -1)) {
-		ESP_LOGE(kLoggerTag, "Time data is invalid");
-		return false;
+	if (isnan(time_raw) || date_raw <= 0) {
+			ESP_LOGE(kLoggerTag, "Invalid time/date");
+			return false;
 	}
 
-	if ((fields->latitude_raw == -1) || (fields->longitude_raw == -1)) {
-		ESP_LOGE(kLoggerTag, "Position data is invalid");
-		return false;
+	if (isnan(lat) || isnan(lon)) {
+			ESP_LOGE(kLoggerTag, "Invalid position data");
+			return false;
 	}
 
-	if ((fields->latitude_direction != 'N') && (fields->latitude_direction != 'S')) {
-		ESP_LOGE(kLoggerTag, "Latitude direction is invalid");
-		return false;
+	if (lat_dir != 'N' && lat_dir != 'S') {
+			ESP_LOGE(kLoggerTag, "Invalid latitude direction");
+			return false;
 	}
 
-	if ((fields->longitude_direction != 'E') && (fields->longitude_direction != 'W')) {
-		ESP_LOGE(kLoggerTag, "Longitude is invalid");
-		return false;
+	if (lon_dir != 'E' && lon_dir != 'W') {
+			ESP_LOGE(kLoggerTag, "Invalid longitude direction");
+			return false;
 	}
 
+	fields->latitude_raw = lat;
+	fields->longitude_raw = lon;
+	fields->latitude_direction = lat_dir;
+	fields->longitude_direction = lon_dir;
 	fields->timestamp = gnrmc_to_timestamp_ms(time_raw, date_raw);
 
 	return true;
 }
 
-static bool EncodeCoordinate(double raw_coordinate, char direction, uint32_t *const data) {
-	if (raw_coordinate <= 0.0) {
-		ESP_LOGW(kLoggerTag, "Raw coordinate smaller than 0");
-		return false;
-	}
+static bool EncodeCoordinate(double raw, char direction, uint32_t *const out) {
+    if (!out || isnan(raw)) {
+        return false;
+    }
 
-	const double degrees_component = floor(raw_coordinate / 100.0);
-	const double minutes_component = raw_coordinate - (degrees_component * 100.0);
-	const double decimal_degree = degrees_component + (minutes_component / 60.0);
-	const double scaled_coordinate = decimal_degree * COORDINATE_SCALE;
+    double deg = floor(raw / 100.0);
+    double min = raw - deg * 100.0;
 
-	if (scaled_coordinate < 0.0) {
-		ESP_LOGW(kLoggerTag, "Scaled coordinate smaller than 0");
-		return false;
-	}
+    if (min < 0.0 || min >= 60.0) {
+        ESP_LOGE(kLoggerTag, "Invalid NMEA minutes");
+        return false;
+    }
 
-	uint32_t encoded = (uint32_t)(scaled_coordinate + 0.5);
-	if ((direction == 'S') || (direction == 'W')) {
-		encoded |= 0x80000000U;
-	}
+    double decimal = deg + (min / 60.0);
+    double scaled = decimal * COORDINATE_SCALE;
 
-  *data = encoded;
-	return true;
+    if (scaled < 0.0) {
+        scaled = -scaled;
+    }
+
+    uint32_t encoded = (uint32_t)(scaled + 0.5);
+
+    if (direction == 'S' || direction == 'W') {
+        encoded |= 0x80000000U;
+    }
+
+    *out = encoded;
+    return true;
 }
 
 uint64_t gnrmc_to_timestamp_ms(double time_raw, int date_raw)
 {
-    // --- Zeit zerlegen (hhmmss.sss) ---
     int hour   = (int)(time_raw / 10000);
     int minute = (int)((time_raw - hour * 10000) / 100);
     int second = (int)(time_raw - hour * 10000 - minute * 100);
 
     int millis = (int)((time_raw - (int)time_raw) * 1000.0 + 0.5);
 
-    // --- Datum zerlegen (ddmmyy) ---
     int day   = date_raw / 10000;
     int month = (date_raw / 100) % 100;
-    int year  = date_raw % 100;   // GPS: yy
+    int year  = date_raw % 100;
 
-    // --- struct tm füllen ---
     struct tm t = {0};
-    t.tm_year = (2000 + year) - 1900;  // Jahre seit 1900
-    t.tm_mon  = month - 1;             // 0–11
+
+    t.tm_year = (2000 + year) - 1900;
+    t.tm_mon  = month - 1;
     t.tm_mday = day;
 
     t.tm_hour = hour;
     t.tm_min  = minute;
     t.tm_sec  = second;
+    t.tm_isdst = 0;
 
-    t.tm_isdst = 0; // kein DST (UTC!)
-
-    // --- WICHTIG: auf UTC setzen ---
     setenv("TZ", "UTC0", 1);
     tzset();
 
-    // --- Sekunden seit Epoch ---
     time_t seconds = mktime(&t);
     if (seconds < 0) {
         return 0;
     }
 
-    // --- Millisekunden ---
-    uint64_t timestamp_ms =
-        ((uint64_t)seconds * 1000ULL) +
-        (uint64_t)millis;
-
-    return timestamp_ms;
+    return ((uint64_t)seconds * 1000ULL) + millis;
 }

@@ -14,7 +14,7 @@
 #include "sensor/senaty_sensor_api_types.h"
 #include "sensor/sencty_sensor_config_types.h"
 
-#define INVALID_CURRENT (UINT16_MAX) //< Value for an invalid current.
+#define INVALID_CURRENT (INT16_MAX) //< Value for an invalid current.
 #define SENSOR_MIN_VOLTAGE (0.0f)
 #define SENSOR_MAX_VOLTAGE (5.0f)
 #define MILLI_VOLT_PER_AMPERE (100U)
@@ -75,7 +75,7 @@ senaty_CurrentSensorReading sencur_ReadData(void) {
   }
 
   float adc_voltage = (raw / 4095.0f) * 3.3f;
-  float sensor_voltage = adc_voltage * ((10.0f + 20.0f) / 20.0f); // Spannungsteiler
+  float sensor_voltage = adc_voltage * ((12.0f + 22.0f) / 22.0f); // Spannungsteiler
 
   if ((sensor_voltage < SENSOR_MIN_VOLTAGE) || (sensor_voltage > SENSOR_MAX_VOLTAGE)) {
     ESP_LOGE(kLoggerTag, "Read voltage is out of range: %f", sensor_voltage);
@@ -83,14 +83,14 @@ senaty_CurrentSensorReading sencur_ReadData(void) {
   }
 
   uint16_t milli_volt = (uint16_t)(sensor_voltage * 1000.0f);
-  uint16_t milli_ampere =
-      ((MILLI_VOLT_AT_ZERO_AMPERE - milli_volt) *
-        MILLI_VOLT_PER_AMPERE) / 1000;
+  int16_t milli_ampere =
+      (int16_t)((int32_t)milli_volt - MILLI_VOLT_AT_ZERO_AMPERE) * 1000
+      / MILLI_VOLT_PER_AMPERE;
 
   senaty_CurrentSensorReading reading = {
     .current = milli_ampere,
   };
 
-  ESP_LOGI(kLoggerTag, "Read current data. Current %u", reading.current);
+  ESP_LOGI(kLoggerTag, "Read current data. Current %i", reading.current);
   return reading;
 }
