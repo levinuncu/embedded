@@ -57,7 +57,6 @@ const App = () => {
     });
   };
 
-
   useEffect(() => {
     let interval: ReturnType<typeof setTimeout> | null = null;
     if (sensorData.isRunning && sensorData.startTime) {
@@ -111,7 +110,11 @@ const App = () => {
     }
   }, [sensorData.location]);
 
-  const last = sensorData.lastUpdatedAt;
+  const last = sensorData.lastUpdatedAt instanceof Date
+    ? sensorData.lastUpdatedAt
+    : sensorData.lastUpdatedAt
+      ? new Date(sensorData.lastUpdatedAt)
+      : null;
 
   return (
     <SafeAreaProvider style={styles.provider}>
@@ -169,43 +172,45 @@ const App = () => {
                   {connectedDevice ? formatElapsedTime(sensorData.elapsedTime) : '00:00'}
                 </Text>
               ) : (
-                <Text style={styles.text}>50min</Text>
+                <Text style={styles.text}>23:07</Text>
               )}
-              {/* {needs to retrieve the time in hh:mm
-              from when start was clicked until stop was pressed - in between 
-              it should retrieve the current amount of time that has passed since the start button press} */}
             </View>
-            <View style={styles.container}>
-              <TouchableOpacity style={styles.reconnectButton}
-                onPress={() => startStopRun(connectedDevice)}
-              >
-                <Text style={styles.buttonText}>{sensorData.isRunning == false ? ('Start') : ('Stop')}</Text>
-              </TouchableOpacity>
-            </View>
+            {connectedDevice ? (
+              <View style={styles.container}>
+                <TouchableOpacity style={styles.reconnectButton}
+                  onPress={() => startStopRun(connectedDevice)}
+                >
+                  <Text style={styles.buttonText}>{sensorData.isRunning == false ? ('Start') : ('Stop')}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (<Text></Text>)}
           </View>
           <View style={styles.container}>
             <View style={styles.container}>
               <Text style={styles.text}>Distance: </Text>
               {connectedDevice ? (
-                <Text style={styles.text}>{sensorData.distance ?? '--'}km</Text>
+                <Text style={styles.text}>
+                  {sensorData.isRunning
+                    ? (sensorData.distance !== null ? sensorData.distance.toFixed(2) : '--') + ' km'
+                    : (sensorData.distance !== null ? sensorData.distance.toFixed(2) : '0') + ' km'}
+                </Text>
               ) : (
-                <Text style={styles.text}>9km</Text>
+                <Text style={styles.text}>9 km</Text>
               )}
-              {/* {should stay empty until stop button was pressed and then should retrieve the covered distance in km 
-              OR
-              should retrieve the current covered distance without waiting for the stop button to be pressed} */}
             </View>
             <View style={styles.container}>
               <Text style={styles.text}>Average speed: </Text>
               {connectedDevice ? (
-                <Text style={styles.text}>{sensorData.avgSpeed ?? '--'}/km</Text>
+                <Text style={styles.text}>
+                  {sensorData.isRunning || sensorData.avgSpeed === null
+                    ? '--'
+                    : `${formatElapsedTime(sensorData.avgSpeed)}/km`}
+                </Text>
               ) : (
                 <Text style={styles.text}>5:78/km</Text>
-
               )}
-              {/* {should stay empty until stop button was pressed and then should
-              calculate the average speed in mm:ss per km, e.g.: 5:37 / km } */}
             </View>
+
           </View>
           <View style={styles.container}>
             <View style={styles.container}>
@@ -229,20 +234,25 @@ const App = () => {
           </View>
           <View style={styles.container}>
             <Text style={styles.lowOpacityText}>Last updated: </Text>
-            {connectedDevice ? (
+            {connectedDevice && last ? (
               <Text style={styles.lowOpacityText}>
-                {last?.getHours()}:{last?.getUTCMinutes()} - {last?.getUTCDate()}.{last?.getMonth()}.{last?.getUTCFullYear()}
+                {last.getHours().toString().padStart(2, '0')}:
+                {last.getMinutes().toString().padStart(2, '0')} - {last.getDate()}.
+                {last.getMonth() + 1}.{last.getFullYear()} // months usually start with 0 so add +1 for human comprehension
               </Text>
             ) : (
               <Text style={styles.lowOpacityText}>13:23 - 19.06.2026</Text>
-
             )}
-
-            <TouchableOpacity style={styles.reconnectButton}
-              onPress={() => reconnectToDevice(connectedDevice)}
-            >
-              <Text style={styles.buttonText}>Reload</Text>
-            </TouchableOpacity>
+            {connectedDevice ? (
+              <TouchableOpacity
+                style={styles.reconnectButton}
+                onPress={() => reconnectToDevice(connectedDevice.id)}
+              >
+                <Text style={styles.buttonText}>Reload</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text></Text>
+            )}
           </View>
         </View>
         {/* ) : (

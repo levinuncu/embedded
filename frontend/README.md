@@ -18,9 +18,9 @@ For iOS:
 * to prebuild expo: `npx expo prebuild`
 * to clean prebuild expo: `npx expo prebuild --clean`
 * to install dev client locally: `npx expo install expo-dev-client`
-* to run expo project: `npm expo start`
-* to build standalone app for android: `npx expo eas --platform android`
-* to build standalone app for ios: `npx expo eas --platform ios`
+* to run expo project: `npx expo start`
+* to build standalone app for android: `npx eas build --profile development --platform android`
+* to build standalone app for ios: `npx eas build --profile development --platform ios`
 * to run on android simulator: `npx expo run:android`
 * to run on ios simulator: `npx expo run:ios`
 * to clear cache: `npm cache clean --force`

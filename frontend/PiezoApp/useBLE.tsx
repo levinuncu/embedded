@@ -99,7 +99,8 @@ function parseSensorReading(buffer: ArrayBuffer, offset: number): SensorData | n
         speed: null, // TODO: calculate speed if needed
         avgSpeed: null,
         distance: null,
-        movingTime: null,
+        startTime: null,
+        elapsedTime: 0,
         temperature,
         humidity,
         location: { latitude, longitude },
@@ -134,6 +135,24 @@ function decodeLatitude(raw: number): number | null {
     return isSouth ? -value : value;
 }
 
+function haversineDistance(
+    lat1: number, lon1: number,
+    lat2: number, lon2: number
+): number {
+    const toRad = (x: number) => (x * Math.PI) / 180;
+
+    const R = 6371; // earth radius in km
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
+
 function useBLE(): BluetoothLowEnergyApi {
     const [allDevices, setAllDevices] = useState<Device[]>([]);
     const [connectedDevice, setConnectedDevice] = useState<Device | null>(null);
@@ -151,6 +170,7 @@ function useBLE(): BluetoothLowEnergyApi {
         lastUpdatedAt: null,
         isRunning: false,
     });
+    const [prevLocation, setPrevLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
     const requestPermissions = useCallback(async (cb: VoidCallback) => {
         if (Platform.OS === 'android') {
@@ -196,7 +216,6 @@ function useBLE(): BluetoothLowEnergyApi {
                 console.log('scan error:', error);
             }
             if (device && device.name?.includes('piezo')) {
-                console.log('device found');
                 setAllDevices(prevState => {
                     if (!isDuplicateDevice(prevState, device)) {
                         return [...prevState, device];
@@ -283,10 +302,39 @@ function useBLE(): BluetoothLowEnergyApi {
         }
 
         console.log('READINGS', readings);
-
         if (readings.length > 0) {
-            setSensorData(readings[0]); // update with first valid reading
-            saveSensorData(readings[0]); // saves locally
+            const newReading = readings[0];
+
+            setSensorData(prev => {
+                if (prev.isRunning && prev.location && newReading.location && newReading.location.latitude !== null && newReading.location.longitude !== null) {
+                    const prevLat = prev.location.latitude!;
+                    const prevLon = prev.location.longitude!;
+                    const newLat = newReading.location.latitude!;
+                    const newLon = newReading.location.longitude!;
+
+                    const increment = haversineDistance(prevLat, prevLon, newLat, newLon);
+
+                    const updatedDistance = (prev.distance ?? 0) + increment;
+
+                    return {
+                        ...newReading,
+                        distance: updatedDistance,
+                        isRunning: true,
+                        startTime: prev.startTime,
+                        elapsedTime: Date.now() - (prev.startTime ?? Date.now()),
+                    };
+                } else {
+                    return {
+                        ...newReading,
+                        distance: prev.distance,
+                        isRunning: prev.isRunning,
+                        startTime: prev.startTime,
+                        elapsedTime: prev.elapsedTime,
+                    };
+                }
+            });
+
+            saveSensorData(readings[0]);
         }
     }, []);
 
@@ -318,18 +366,27 @@ function useBLE(): BluetoothLowEnergyApi {
                     isRunning: true,
                     startTime: Date.now(),
                     elapsedTime: 0,
+                    distance: 0,
+                    avgSpeed: null,
                 };
             } else {
+                const elapsedTime = Date.now() - (prev.startTime ?? Date.now());
+                let avgSpeedValue: number | null = null;
+
+                if (prev.distance && prev.distance > 0) {
+                    avgSpeedValue = elapsedTime / prev.distance; // ms per km
+                }
+
                 return {
                     ...prev,
                     isRunning: false,
                     startTime: null,
+                    elapsedTime,
+                    avgSpeed: avgSpeedValue,
                 };
             }
         });
     };
-
-
 
     function formatElapsedTime(ms: number): string {
         const totalSeconds = Math.floor(ms / 1000);
@@ -360,7 +417,14 @@ function useBLE(): BluetoothLowEnergyApi {
     const loadLastSensorData = async () => {
         try {
             const jsonValue = await AsyncStorage.getItem('@lastSensorData');
-            return jsonValue != null ? JSON.parse(jsonValue) : null;
+            if (jsonValue != null) {
+                const data = JSON.parse(jsonValue);
+                if (data.lastUpdatedAt) {
+                    data.lastUpdatedAt = new Date(data.lastUpdatedAt);
+                }
+                return data;
+            }
+            return null;
         } catch (e) {
             console.error('Failed to load sensor data', e);
             return null;
