@@ -100,7 +100,7 @@ senaty_TemperatureSensorReading sentem_ReadData(void) {
     return kFailedReading;
   }
 
-  ESP_LOGI(kLoggerTag, "Read sensor data. Temperature %u, Humidity: %i", reading.humidity, reading.temperature);
+  ESP_LOGI(kLoggerTag, "Read sensor data. Temperature %u, Humidity: %i", reading.temperature, reading.humidity);
   return reading;
 }
 
