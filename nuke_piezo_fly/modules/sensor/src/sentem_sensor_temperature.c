@@ -38,9 +38,39 @@ static bool initialized = false;
  */
 static sencty_TemperatureSensorConfiguration configuration;
 
-static bool dht11_wait_for_level(int level, int timeout_us);
+/**
+ * @brief Send start signal required to initiate a DHT11 measurement.
+ */
 static void dht11_start_signal(void);
+
+/**
+ * @brief Block until the DHT11 data line reaches the expected level.
+ * 
+ * @param level      Expected GPIO level, either 0 for low or 1 for high.
+ * @param timeout_us Maximum time to wait in microseconds.
+ *
+ * @return true The expected level was reached before the timeout expired.
+ * @return false The timeout expired before the expected level was reached.
+ */
+static bool dht11_wait_for_level(int level, int timeout_us);
+
+/**
+ * @brief Read a single bit from the DHT11 data line.
+ * 
+ * @return 1 if the measured high phase represents a logical one.
+ * @return 0 if the measured high phase represents a logical zero.
+ * @return -1 if a timeout occurs while waiting for the signal level.
+ */
 static int dht11_read_bit(void);
+
+/**
+ * @brief Read one byte from the DHT11 data line.
+ * 
+ * @param[out] byte_out Pointer to the variable where the received byte is stored.
+ *
+ * @return true  The byte was read successfully.
+ * @return false Reading failed because of a timeout or an invalid output pointer.
+ */
 static bool dht11_read_byte(uint8_t *const byte_out);
 
 void sentem_Init(const sencty_TemperatureSensorConfiguration sensor_configuration) {
@@ -60,6 +90,7 @@ void sentem_Init(const sencty_TemperatureSensorConfiguration sensor_configuratio
     return;
   }
 
+  // The DHT11 data line is idle high when no transmission is active.
   const esp_err_t kSetLevelResult = gpio_set_level(configuration.data_gpio, 1);
   if (kSetLevelResult != ESP_OK) {
     ESP_LOGE(kLoggerTag, "Failed to set the output level: %s", esp_err_to_name(kSetLevelResult));
@@ -82,6 +113,7 @@ senaty_TemperatureSensorReading sentem_ReadData(void) {
 
   dht11_start_signal();
 
+  // After the start signal, the DHT11 responds with a low-high-low sequence.
   if (!dht11_wait_for_level(0, DHT11_RESPONSE_TIMEOUT_US) || !dht11_wait_for_level(1, DHT11_RESPONSE_TIMEOUT_US) || !dht11_wait_for_level(0, DHT11_RESPONSE_TIMEOUT_US)) {
     ESP_LOGE(kLoggerTag, "Sensor signal response timed out");
     return kFailedReading;

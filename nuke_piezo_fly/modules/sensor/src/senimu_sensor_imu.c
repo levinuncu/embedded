@@ -79,6 +79,7 @@ void senimu_Init(const sencty_ImuSensorConfiguration sensor_configuration) {
     return;
 	}
 
+  // The MPU6050 starts in sleep mode and must be woken before configuration.
 	const esp_err_t kWakeUpResult = mpu6050_wake_up(mpu6050_handle);
 	if (kWakeUpResult != ESP_OK) {
     ESP_LOGE(kLoggerTag, "Failed to wake up the MPU6050: %s", esp_err_to_name(kWakeUpResult));
@@ -146,6 +147,7 @@ senaty_ImuSensorReading senimu_ReadData(void) {
 		return kFailedReading;
 	}
 
+  // Convert the MPU6050 driver values to the project-specific reading format.
   senaty_ImuSensorReading reading = {
     .acceleration_x = (int8_t)acceleration.acce_x,
 		.acceleration_y = (int8_t)acceleration.acce_y,

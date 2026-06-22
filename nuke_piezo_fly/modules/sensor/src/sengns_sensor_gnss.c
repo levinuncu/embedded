@@ -48,9 +48,39 @@ static bool initialized = false;
  */
 static sencty_GnssSensorConfiguration configuration;
 
+/**
+ * @brief Parse a GNRMC/RMC NMEA sentence.
+ *
+ * @param[in] nmea_string UART buffer containing one or more NMEA sentences.
+ * @param[out] fields Parsed GNRMC fields.
+ *
+ * @return true  A valid RMC sentence was found and parsed successfully.
+ * @return false No valid RMC sentence was found or parsing failed.
+ */
 static bool ParseGNRMC(const char *const nmea_strings, GnrmcFields *const fields);
+
+/**
+ * @brief Encode a raw NMEA coordinate into the project-specific position format.
+ *
+ * @param raw_coordinate Raw NMEA coordinate in ddmm.mmmm or dddmm.mmmm format.
+ * @param direction Coordinate direction: N, S, E or W.
+ * @param[out] data Encoded coordinate value.
+ *
+ * @return true  The coordinate was converted successfully.
+ * @return false The input data was invalid or data was NULL.
+ */
 static bool EncodeCoordinate(double raw_coordinate, char direction, uint32_t *const data);
-uint64_t gnrmc_to_timestamp_ms(double time_raw, int date_raw);
+
+
+/**
+ * @brief Convert GNRMC time and date fields to a UTC timestamp in milliseconds.
+ *
+ * @param time_raw Raw RMC time value in hhmmss.sss format.
+ * @param date_raw Raw RMC date value in ddmmyy format.
+ *
+ * @return UTC Unix timestamp in milliseconds.
+ */
+static uint64_t gnrmc_to_timestamp_ms(double time_raw, int date_raw);
 
 void sengns_Init(const sencty_GnssSensorConfiguration sensor_configuration) {
   configuration = sensor_configuration;
@@ -77,7 +107,7 @@ void sengns_Init(const sencty_GnssSensorConfiguration sensor_configuration) {
   }
 
   const esp_err_t kSetLevelResult = uart_set_pin(configuration.uart_port, configuration.uart_tx_gpio, configuration.uart_rx_gpio, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
-  if (kConfigResult != ESP_OK) {
+  if (kSetLevelResult != ESP_OK) {
     ESP_LOGE(kLoggerTag, "Failed to assign the UART pins: %s", esp_err_to_name(kSetLevelResult));
     return;
   }
@@ -109,6 +139,7 @@ senaty_GnssSensorReading sengns_ReadData(void) {
 		return kFailedReading;
 	}
   
+	// Ensure the UART buffer can safely be used as a C string.
   buffer[bytes_read] = '\0';
 
 	GnrmcFields fields = {0};
@@ -138,13 +169,15 @@ senaty_GnssSensorReading sengns_ReadData(void) {
   return reading;
 }
 
-static bool ParseGNRMC(const char *const nmea, GnrmcFields *const fields) {
-	const char *start = strstr(nmea, "RMC,");
+static bool ParseGNRMC(const char *const nmea_string, GnrmcFields *const fields) {
+	// Search for an RMC sentence independent of the talker ID, e.g. GNRMC or GPRMC.
+	const char *start = strstr(nmea_string, "RMC,");
 	if (!start) {
 			ESP_LOGE(kLoggerTag, "No RMC sentence found");
 			return false;
 	}
 
+	// Copy only the current NMEA sentence without trailing CR/LF.
 	size_t len = strcspn(start, "\r\n");
 	if (len == 0 || len >= 128) {
 			ESP_LOGE(kLoggerTag, "Invalid sentence length");
@@ -170,6 +203,8 @@ static bool ParseGNRMC(const char *const nmea, GnrmcFields *const fields) {
 	char lon_dir = 0;
 
 	while (token != NULL) {
+    // RMC field order:
+    // 1 = UTC time, 2 = status, 3/4 = latitude, 5/6 = longitude, 9 = date.
 		switch (index) {
 			case 1: time_raw = strtod(token, NULL); break;
 			case 2: status = token[0]; break;
@@ -184,6 +219,7 @@ static bool ParseGNRMC(const char *const nmea, GnrmcFields *const fields) {
 		index++;
 	}
 
+	// Status 'A' means valid fix, 'V' means invalid or warning.
 	if (status != 'A') {
 			ESP_LOGW(kLoggerTag, "No valid GPS fix (status != A)");
 			return false;
@@ -218,19 +254,21 @@ static bool ParseGNRMC(const char *const nmea, GnrmcFields *const fields) {
 	return true;
 }
 
-static bool EncodeCoordinate(double raw, char direction, uint32_t *const out) {
-    if (!out || isnan(raw)) {
+static bool EncodeCoordinate(double raw_coordinate, char direction, uint32_t *const data) {
+    if (!data || isnan(raw_coordinate)) {
         return false;
     }
 
-    double deg = floor(raw / 100.0);
-    double min = raw - deg * 100.0;
+		// NMEA coordinates are encoded as ddmm.mmmm or dddmm.mmmm.
+    double deg = floor(raw_coordinate / 100.0);
+    double min = raw_coordinate - deg * 100.0;
 
     if (min < 0.0 || min >= 60.0) {
         ESP_LOGE(kLoggerTag, "Invalid NMEA minutes");
         return false;
     }
 
+		// Convert degrees and minutes to decimal degrees and scale for integer storage.
     double decimal = deg + (min / 60.0);
     double scaled = decimal * COORDINATE_SCALE;
 
@@ -240,22 +278,24 @@ static bool EncodeCoordinate(double raw, char direction, uint32_t *const out) {
 
     uint32_t encoded = (uint32_t)(scaled + 0.5);
 
+		// The highest bit is used as sign flag for south and west coordinates.
     if (direction == 'S' || direction == 'W') {
         encoded |= 0x80000000U;
     }
 
-    *out = encoded;
+    *data = encoded;
     return true;
 }
 
-uint64_t gnrmc_to_timestamp_ms(double time_raw, int date_raw)
+static uint64_t gnrmc_to_timestamp_ms(double time_raw, int date_raw)
 {
+		// RMC time format: hhmmss.sss
     int hour   = (int)(time_raw / 10000);
     int minute = (int)((time_raw - hour * 10000) / 100);
     int second = (int)(time_raw - hour * 10000 - minute * 100);
-
     int millis = (int)((time_raw - (int)time_raw) * 1000.0 + 0.5);
 
+		// RMC date format: ddmmyy
     int day   = date_raw / 10000;
     int month = (date_raw / 100) % 100;
     int year  = date_raw % 100;

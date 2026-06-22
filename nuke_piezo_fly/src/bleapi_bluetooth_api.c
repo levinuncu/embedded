@@ -95,6 +95,7 @@ esp_err_t bleapi_Init(void) {
     return return_code;
   }
 
+  // Starts the NimBLE host in its own FreeRTOS task.
   nimble_port_freertos_init(HostTask);
 
   initialized = true;
@@ -134,10 +135,12 @@ void bleapi_DisconnectClient(void) {
     return;
   }
 
-  client_connected = false;
-  notify_enabled = false;
-
-  ble_gap_terminate(conn_handle, BLE_ERR_REM_USER_CONN_TERM);
+  // Do not clear the connection state here. The GAP disconnect event will do it
+  // after the controller has actually terminated the connection.
+  const int return_code = ble_gap_terminate(conn_handle, BLE_ERR_REM_USER_CONN_TERM);
+  if (return_code != 0) {
+    ESP_LOGE(kLoggerTag, "Failed to disconnect client, return code: %i", return_code);
+  }
 }
 
 bool bleapi_IsNotifyEnabled(void) {
@@ -149,6 +152,7 @@ void bleapi_SendSensorsReadings(const senaty_SensorsReading *const sensors_readi
     return;
   }
 
+   // Limit the number of readings per notification so the payload fits into one BLE packet.
   const size_t kMaxReadingsPerPacket = 7;
   size_t offset = 0;
 
@@ -175,6 +179,8 @@ void bleapi_SendSensorsReadings(const senaty_SensorsReading *const sensors_readi
       }
 
       offset += chunk_count;
+
+      // Avoid flooding the BLE stack with notifications back-to-back.
       vTaskDelay(pdMS_TO_TICKS(100));
   }
 }
@@ -184,16 +190,19 @@ static void OnReset(int reason) {
 }
 
 static void OnSync(void) {
+  // The BLE host is synchronized now, so the own address type can be selected.
   int return_code = ble_hs_id_infer_auto(0, &own_addr_type);
   if (return_code != 0) {
     ESP_LOGE(kLoggerTag, "Failed to determine address type, return code: %i", return_code);
     return;
   }
 
+  // Start advertising only after the BLE stack is ready.
   Advertise();
 }
 
 static void HostTask(void *param) {
+  // This call blocks until nimble_port_stop() is called.
   nimble_port_run();
   nimble_port_freertos_deinit();
 }
@@ -209,6 +218,7 @@ static esp_err_t GattInit(void) {
       return ESP_FAIL;
   }
 
+  // NimBLE first counts the handles required by the GATT table before adding it.
   return_code = ble_gatts_count_cfg(kGattServices);
   if (return_code != 0) {
       return ESP_FAIL;
@@ -226,6 +236,7 @@ static void Advertise(void) {
     struct ble_hs_adv_fields fields;
     memset(&fields, 0, sizeof(fields));
 
+    // Make the device generally discoverable and mark that classic Bluetooth is unsupported.
     fields.flags = BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP;
     fields.tx_pwr_lvl_is_present = 1;
     fields.tx_pwr_lvl = BLE_HS_ADV_TX_PWR_LVL_AUTO;
@@ -283,6 +294,7 @@ static int GapEvent(struct ble_gap_event *event, void *arg) {
 
                 ESP_LOGI(kLoggerTag, "Client connected");
             } else {
+                // Restart advertising if the connection attempt failed.
                 Advertise();
             }
 
@@ -294,16 +306,19 @@ static int GapEvent(struct ble_gap_event *event, void *arg) {
             notify_enabled = false;
             conn_handle = 0;
 
+            // Make the device connectable again after the client disconnected.
             Advertise();
             return 0;
         case BLE_GAP_EVENT_SUBSCRIBE:
             if (event->subscribe.attr_handle == value_handle) {
+                // Notifications may only be sent after the client subscribed to the characteristic.
                 notify_enabled = event->subscribe.cur_notify;
                 ESP_LOGI(kLoggerTag, "Notify %s", notify_enabled ? "enabled" : "disabled");
             }
 
             return 0;
         case BLE_GAP_EVENT_ADV_COMPLETE:
+            // Keep advertising permanently unless a connection is active.
             Advertise();
             return 0;
         default:
