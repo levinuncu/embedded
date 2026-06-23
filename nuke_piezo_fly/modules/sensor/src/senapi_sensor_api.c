@@ -9,6 +9,7 @@
 #include "sencur_sensor_current.h"
 
 void senapi_Init(const sencty_SensorsConfiguration sensors_configuration) {
+  // Initialize all sensors
   sengns_Init(sensors_configuration.gnss_sensor);
   senimu_Init(sensors_configuration.imu_sensor);
   sentem_Init(sensors_configuration.temperature_sensor);
@@ -16,6 +17,7 @@ void senapi_Init(const sencty_SensorsConfiguration sensors_configuration) {
 }
 
 void senapi_Deinit(void) {
+  // Only imu needs cleanup
   senimu_Deinit();
 }
 

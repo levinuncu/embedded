@@ -67,15 +67,15 @@ senaty_CurrentSensorReading sencur_ReadData(void) {
     return kFailedReading;
   }
 
-  int raw = 0;
+  int raw = 0; 
   const esp_err_t kReadResult = adc_oneshot_read(adc_handle, adc_channel, &raw);
   if (kReadResult != ESP_OK) {
     ESP_LOGE(kLoggerTag, "Failed to read the raw value: %s", esp_err_to_name(kReadResult));
     return kFailedReading;
   }
 
-  float adc_voltage = (raw / 4095.0f) * 3.3f;
-  float sensor_voltage = adc_voltage * ((12.0f + 22.0f) / 22.0f); // Spannungsteiler
+  float adc_voltage = (raw / 4095.0f) * 3.3f; // Convert read value to voltage
+  float sensor_voltage = adc_voltage * ((12.0f + 22.0f) / 22.0f); // Voltage divider: U_ges = U_adc * ((R1 + R2) / R2)
 
   if ((sensor_voltage < SENSOR_MIN_VOLTAGE) || (sensor_voltage > SENSOR_MAX_VOLTAGE)) {
     ESP_LOGE(kLoggerTag, "Read voltage is out of range: %f", sensor_voltage);
