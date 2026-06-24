@@ -5,6 +5,7 @@ import DeviceModal from './DeviceConnectionModal';
 import useBLE from './useBLE';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import SensorChart from './SensorChart';
 
 const screenWidth = Dimensions.get('window').width;
 const mapWidth = screenWidth * 0.9;
@@ -35,7 +36,12 @@ const App = () => {
     const initialize = async () => {
       const savedSensorData = await loadLastSensorData();
       if (savedSensorData) {
-        setSensorData(savedSensorData);
+        setSensorData(prev => ({
+          ...prev,
+          distance: savedSensorData.distance,
+          elapsedTime: savedSensorData.elapsedTime,
+          avgSpeed: savedSensorData.avgSpeed,
+        }));
       }
       const savedDevice = await loadLastConnectedDevice();
       if (savedDevice?.id) {
@@ -216,11 +222,10 @@ const App = () => {
             <View style={styles.container}>
               <Text style={styles.text}>Temperature: </Text>
               {connectedDevice ? (
-                <Text style={styles.text}>{sensorData.temperature ?? '--'}°</Text>
+                <Text style={styles.text}>{sensorData.temperature ?? '--'}°C</Text>
               ) : (
                 <Text style={styles.text}>29°</Text>
               )}
-
             </View>
             <View style={styles.container}>
               <Text style={styles.text}>Humidity: </Text>
@@ -229,17 +234,49 @@ const App = () => {
               ) : (
                 <Text style={styles.text}>20%</Text>
               )}
-
+            </View>
+            <View style={styles.container}>
+              <Text style={styles.text}>Current: </Text>
+              {connectedDevice ? (
+                <Text style={styles.text}>{sensorData.current ?? '--'}A</Text>
+              ) : (
+                <Text style={styles.text}>3.3A</Text>
+              )}
             </View>
           </View>
+          <View style={styles.container}>
+            <View style={styles.container}>
+              <Text style={styles.text}>Accaleration stats: </Text>
+              {connectedDevice ? (
+                <Text style={styles.text}>({sensorData.imu?.acc_x ?? '--'}, {sensorData.imu?.acc_y ?? '--'}, {sensorData.imu?.acc_z ?? '--'})</Text>
+              ) : (
+                <Text style={styles.text}>(1, 3, 4)</Text>
+              )}
+            </View>
+            <View style={styles.container}>
+              <Text style={styles.text}>Gyroscope stats: </Text>
+              {connectedDevice ? (
+                <Text style={styles.text}>({sensorData.imu?.gyro_x ?? '--'}, {sensorData.imu?.gyro_y ?? '--'}, {sensorData.imu?.gyro_z ?? '--'})</Text>
+              ) : (
+                <Text style={styles.text}>(0, -1, -1)</Text>
+              )}
+            </View>
+          </View>
+          <SensorChart
+            temperature={sensorData.temperature}
+            humidity={sensorData.humidity}
+            imu={sensorData.imu}
+            timestamp={sensorData.timestamp}
+            isConnected={!!connectedDevice}
+          />
           <View style={styles.container}>
             <Text style={styles.lowOpacityText}>Last updated: </Text>
             {connectedDevice && last ? (
               <Text style={styles.lowOpacityText}>
                 {last.getHours().toString().padStart(2, '0')}:
                 {last.getMinutes().toString().padStart(2, '0')} - {last.getDate()}.
-                {last.getMonth() + 1}.{last.getFullYear()} // months usually start with 0 so add +1 for human comprehension
-              </Text>
+                {last.getMonth() + 1}.{last.getFullYear()}
+              </Text> // months usually start with 0 so add +1 for human comprehension
             ) : (
               <Text style={styles.lowOpacityText}>13:23 - 19.06.2026</Text>
             )}
@@ -291,7 +328,6 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     marginHorizontal: 20,
-    marginBottom: '50%',
     maxWidth: mapWidth,
     justifyContent: 'space-evenly',
   },

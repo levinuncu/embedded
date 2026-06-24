@@ -19,11 +19,11 @@ const bleManager = new BleManager();
 type VoidCallback = (result: boolean) => void;
 
 interface SensorData {
-    speed: number | null;
     avgSpeed: number | null;
     distance: number | null;
     startTime: number | null;
     elapsedTime: number;
+    current: number | null;
     temperature: number | null;
     humidity: number | null;
     location: { latitude: number | null; longitude: number | null } | null;
@@ -90,19 +90,23 @@ function parseSensorReading(buffer: ArrayBuffer, offset: number): SensorData | n
     const humidity = view.getUint8(26);
     const temperature = view.getInt8(27);
 
+    console.log('----------------------------------------------------------------');
+    console.log(temperature);
+    console.log('----------------------------------------------------------------');
+
+    const currentMilli = view.getUint16(28);
+    const current = currentMilli / 10000; // supposed to be 1000 to convert milli ampere to ampere
+
     const lastUpdatedAt = new Date();
 
-    console.log('latitude', latitude);
-    console.log('longitude', longitude);
-
     return {
-        speed: null, // TODO: calculate speed if needed
         avgSpeed: null,
         distance: null,
         startTime: null,
         elapsedTime: 0,
-        temperature,
-        humidity,
+        current: current,
+        temperature: temperature === 127 ? null : temperature,
+        humidity: humidity === 255 ? null : humidity,
         location: { latitude, longitude },
         imu: { acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z },
         timestamp: Number(timestamp),
@@ -157,11 +161,11 @@ function useBLE(): BluetoothLowEnergyApi {
     const [allDevices, setAllDevices] = useState<Device[]>([]);
     const [connectedDevice, setConnectedDevice] = useState<Device | null>(null);
     const [sensorData, setSensorData] = useState<SensorData>({
-        speed: null,
         avgSpeed: null,
         distance: null,
         startTime: null,
         elapsedTime: 0,
+        current: null,
         temperature: null,
         humidity: null,
         location: null,
@@ -305,6 +309,14 @@ function useBLE(): BluetoothLowEnergyApi {
         if (readings.length > 0) {
             const newReading = readings[0];
 
+            const isFaultyReading =
+                newReading.temperature === null ||
+                newReading.humidity === null;
+
+            if (isFaultyReading) {
+                return; // skips faulty readings 
+            }
+
             setSensorData(prev => {
                 if (prev.isRunning && prev.location && newReading.location && newReading.location.latitude !== null && newReading.location.longitude !== null) {
                     const prevLat = prev.location.latitude!;
@@ -333,8 +345,6 @@ function useBLE(): BluetoothLowEnergyApi {
                     };
                 }
             });
-
-            saveSensorData(readings[0]);
         }
     }, []);
 
