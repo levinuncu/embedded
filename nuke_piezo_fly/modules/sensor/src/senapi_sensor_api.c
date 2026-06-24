@@ -6,14 +6,18 @@
 #include "sengns_sensor_gnss.h"
 #include "senimu_sensor_imu.h"
 #include "sentem_sensor_temperature.h"
+#include "sencur_sensor_current.h"
 
 void senapi_Init(const sencty_SensorsConfiguration sensors_configuration) {
+  // Initialize all sensors
   sengns_Init(sensors_configuration.gnss_sensor);
   senimu_Init(sensors_configuration.imu_sensor);
   sentem_Init(sensors_configuration.temperature_sensor);
+  sencur_Init();
 }
 
 void senapi_Deinit(void) {
+  // Only imu needs cleanup
   senimu_Deinit();
 }
 
@@ -22,6 +26,7 @@ senaty_SensorsReading senapi_ReadData(void) {
     .gnss_sensor = sengns_ReadData(),
     .imu_sensor = senimu_ReadData(),
     .temperature_sensor = sentem_ReadData(),
+    .current_sensor = sencur_ReadData(),
   };
 
   return readings;

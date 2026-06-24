@@ -92,6 +92,19 @@ typedef struct {
 	int8_t temperature;
 } senaty_TemperatureSensorReading;
 
+
+/**
+ * @brief Reading of a DHT11 temperature sensor.
+ */
+typedef struct {
+  /**
+   * @brief Current [mA].
+   * 
+   * A value of INT16_MAX indicates that the current could not be read.
+   */
+	int16_t current;
+} senaty_CurrentSensorReading;
+
 /**
  * @brief Reading of all sensors.
  */
@@ -108,6 +121,10 @@ typedef struct {
    * @brief Reading of a temperature sensor.
    */
   senaty_TemperatureSensorReading temperature_sensor;
+  /**
+   * @brief Reading of a current sensor.
+   */
+  senaty_CurrentSensorReading current_sensor;
 } senaty_SensorsReading;
 
 #endif // SENATY_SENSOR_API_TYPES_H_

@@ -19,7 +19,7 @@ const sencty_SensorsConfiguration sencfg_sensor_configuration = {
   .imu_sensor = {
     .i2c_address = 0x68,
     .i2c_port = I2C_NUM_0,
-    .i2c_scl_gpio = GPIO_NUM_22,
+    .i2c_scl_gpio = GPIO_NUM_23,
     .i2c_clock_speed_hz = 100000,
     .i2c_sda_gpio = GPIO_NUM_21,
   },

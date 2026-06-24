@@ -30,6 +30,8 @@ void bleapi_Deinit(void);
  */
 bool bleapi_IsClientConnected(void);
 
+void bleapi_DisconnectClient(void);
+
 /**
  * @brief Returns true if a client has subscribed.
  */
