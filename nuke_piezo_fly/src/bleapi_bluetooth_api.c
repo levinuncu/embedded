@@ -153,7 +153,7 @@ void bleapi_SendSensorsReadings(const senaty_SensorsReading *const sensors_readi
   }
 
    // Limit the number of readings per notification so the payload fits into one BLE packet.
-  const size_t kMaxReadingsPerPacket = 7;
+  const size_t kMaxReadingsPerPacket = 6;
   size_t offset = 0;
 
   while (offset < number_of_readings) {

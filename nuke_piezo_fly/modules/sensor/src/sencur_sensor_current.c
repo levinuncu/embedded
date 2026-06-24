@@ -35,7 +35,7 @@ static adc_channel_t adc_channel = ADC_CHANNEL_2;
 
 void sencur_Init(void) {
   adc_oneshot_unit_init_cfg_t init_cfg = {
-      .unit_id = ADC_UNIT_1,
+      .unit_id = ADC_UNIT_2,
       .ulp_mode = ADC_ULP_MODE_DISABLE
   };
   const esp_err_t kCreateResult = adc_oneshot_new_unit(&init_cfg, &adc_handle);
