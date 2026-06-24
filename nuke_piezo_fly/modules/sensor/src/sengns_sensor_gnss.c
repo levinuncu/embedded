@@ -70,6 +70,7 @@ static bool ParseGNRMC(const char *const nmea_strings, GnrmcFields *const fields
  * @return false The input data was invalid or data was NULL.
  */
 static bool EncodeCoordinate(double raw_coordinate, char direction, uint32_t *const data);
+uint64_t gnrmc_to_timestamp_ms(double time_raw, int date_raw);
 
 
 /**
