@@ -1,10 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, Text, Alert, TouchableOpacity, Dimensions } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import DeviceModal from './DeviceConnectionModal';
 import useBLE from './useBLE';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import SensorChart from './SensorChart';
 
 const screenWidth = Dimensions.get('window').width;
@@ -32,6 +31,8 @@ const App = () => {
     saveSensorData,
   } = useBLE();
 
+  const hasInitialized = useRef(false);
+
   useEffect(() => {
     const initialize = async () => {
       const savedSensorData = await loadLastSensorData();
@@ -41,17 +42,24 @@ const App = () => {
           distance: savedSensorData.distance,
           elapsedTime: savedSensorData.elapsedTime,
           avgSpeed: savedSensorData.avgSpeed,
+          temperature: savedSensorData.temperature,
+          humidity: savedSensorData.humidity,
+          current: savedSensorData.current,
+          location: savedSensorData.location,
+          lastUpdatedAt: savedSensorData.lastUpdatedAt,
         }));
       }
       const savedDevice = await loadLastConnectedDevice();
       if (savedDevice?.id) {
         reconnectToDevice(savedDevice.id);
       }
+      hasInitialized.current = true;
     };
     initialize();
   }, []);
 
   useEffect(() => {
+    if (!hasInitialized.current) return;
     saveSensorData(sensorData);
   }, [sensorData]);
 
@@ -266,7 +274,7 @@ const App = () => {
             temperature={sensorData.temperature}
             humidity={sensorData.humidity}
             imu={sensorData.imu}
-            timestamp={sensorData.timestamp}
+            timestamp={sensorData.lastUpdatedAt?.getTime() ?? null}
             isConnected={!!connectedDevice}
           />
           <View style={styles.container}>

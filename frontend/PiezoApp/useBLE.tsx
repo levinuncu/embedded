@@ -90,12 +90,8 @@ function parseSensorReading(buffer: ArrayBuffer, offset: number): SensorData | n
     const humidity = view.getUint8(26);
     const temperature = view.getInt8(27);
 
-    console.log('----------------------------------------------------------------');
-    console.log(temperature);
-    console.log('----------------------------------------------------------------');
-
     const currentMilli = view.getUint16(28);
-    const current = currentMilli / 10000; // supposed to be 1000 to convert milli ampere to ampere
+    const current = currentMilli / 1000; // supposed to be 1000 to convert mA to A, but this way the stats look prettier
 
     const lastUpdatedAt = new Date();
 
@@ -406,6 +402,7 @@ function useBLE(): BluetoothLowEnergyApi {
     }
 
     const saveSensorData = async (data: SensorData) => {
+        if (data.lastUpdatedAt === null && data.temperature === null) return;
         try {
             await AsyncStorage.setItem('@lastSensorData', JSON.stringify(data));
         } catch (e) {
