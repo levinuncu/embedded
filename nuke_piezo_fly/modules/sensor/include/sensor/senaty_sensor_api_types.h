@@ -94,7 +94,7 @@ typedef struct {
 
 
 /**
- * @brief Reading of a DHT11 temperature sensor.
+ * @brief Reading of a current sensor.
  */
 typedef struct {
   /**
