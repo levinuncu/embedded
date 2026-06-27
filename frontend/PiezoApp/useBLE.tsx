@@ -91,7 +91,7 @@ function parseSensorReading(buffer: ArrayBuffer, offset: number): SensorData | n
     const temperature = view.getInt8(27);
 
     const currentMilli = view.getUint16(28);
-    const current = currentMilli / 1000; // supposed to be 1000 to convert mA to A, but this way the stats look prettier
+    const current = currentMilli / 1000;
 
     const lastUpdatedAt = new Date();
 
