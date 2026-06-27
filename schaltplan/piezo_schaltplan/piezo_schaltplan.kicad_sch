@@ -1,0 +1,196 @@
+(kicad_sch
+	(version 20260306)
+	(generator "eeschema")
+	(generator_version "10.0")
+	(uuid "df34e7ba-1f88-4af6-a36f-b9e09063b0c1")
+	(paper "A4")
+	(lib_symbols)
+	(wire
+		(pts
+			(xy 137.16 82.55) (xy 162.56 82.55)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "15c2af85-e01c-47e5-a12f-7af727cfcca8")
+	)
+	(wire
+		(pts
+			(xy 137.16 96.52) (xy 162.56 96.52)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "3f13f71a-5302-495c-a8b3-07fde1c30c7c")
+	)
+	(wire
+		(pts
+			(xy 137.16 85.09) (xy 162.56 85.09)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "dd7981a5-70d0-44e2-b4a2-e399dcdab62e")
+	)
+	(sheet
+		(at 86.36 77.47)
+		(size 50.8 25.4)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0)
+		)
+		(uuid "2ade19db-83a1-401a-a68a-3e26b30a4ece")
+		(property "Sheetname" "Spannungsversorgung"
+			(at 86.36 76.7584 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "spannungsversorgung.kicad_sch"
+			(at 86.36 103.4546 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(pin "3V3" input
+			(at 137.16 82.55 0)
+			(uuid "5d1afb0c-1ad6-4069-988b-e53e43d03cc5")
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(pin "AO_Current" input
+			(at 137.16 96.52 0)
+			(uuid "08a41319-ad0f-4cf5-93ab-673f5e89e0b2")
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(pin "GND" input
+			(at 137.16 85.09 0)
+			(uuid "4f6f1b3a-9112-4735-87b4-d9b7ed515f42")
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(instances
+			(project "piezo_schaltplan"
+				(path "/df34e7ba-1f88-4af6-a36f-b9e09063b0c1"
+					(page "2")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 162.56 77.47)
+		(size 50.8 25.4)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0)
+		)
+		(uuid "5a3187d5-5037-4c5b-8398-c0b9a53870af")
+		(property "Sheetname" "ESP32"
+			(at 162.56 76.7584 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "esp32.kicad_sch"
+			(at 162.56 103.4546 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(pin "3V3" input
+			(at 162.56 82.55 180)
+			(uuid "612db878-e7ba-42e2-bed9-1462b4f43a5e")
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(pin "AO_Current" input
+			(at 162.56 96.52 180)
+			(uuid "6a8272fa-e6c4-4bf0-a45c-9db84646e039")
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(pin "GND" input
+			(at 162.56 85.09 180)
+			(uuid "d11d3dcd-126d-41dc-9885-67ccf40c9fca")
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(instances
+			(project "piezo_schaltplan"
+				(path "/df34e7ba-1f88-4af6-a36f-b9e09063b0c1"
+					(page "3")
+				)
+			)
+		)
+	)
+	(sheet_instances
+		(path "/"
+			(page "1")
+		)
+	)
+	(embedded_fonts no)
+)

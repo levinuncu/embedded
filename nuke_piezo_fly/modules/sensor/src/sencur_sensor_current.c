@@ -82,10 +82,10 @@ senaty_CurrentSensorReading sencur_ReadData(void) {
     return kFailedReading;
   }
 
-  uint16_t milli_volt = (uint16_t)(sensor_voltage * 1000.0f);
+  uint16_t milli_volt = (uint16_t)(sensor_voltage * 1000.0f); // Convert to milli volt
   int16_t milli_ampere =
       (int16_t)((int32_t)milli_volt - MILLI_VOLT_AT_ZERO_AMPERE) * 1000
-      / MILLI_VOLT_PER_AMPERE;
+      / MILLI_VOLT_PER_AMPERE; // Calculate measured analog input to current based on the datasheet of the sensor.
 
   senaty_CurrentSensorReading reading = {
     .current = milli_ampere,

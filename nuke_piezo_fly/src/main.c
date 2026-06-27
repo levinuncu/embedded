@@ -53,6 +53,7 @@ void app_main(void) {
     return;
   }
 
+  // Start sensor and bluetooth task
   xTaskCreate(sensor_task, "sensor_task", 4096, NULL, 5, NULL);
   xTaskCreate(bluetooth_task, "bluetooth_task", 4096, NULL, 4, NULL);
 }
@@ -67,17 +68,21 @@ static void sensor_task(void *arg) {
 
     const senaty_SensorsReading reading = senapi_ReadData();
 
+    // Acquire semaphore to prevent shared access
     xSemaphoreTake(storage_mutex, portMAX_DELAY);
 
+    // Save reding in ram
     sensors_readings[reading_counter] = reading;
     reading_counter++;
 
     if (reading_counter >= NUMBER_OF_RTC_SENSORS_READING) {
       ESP_LOGI(kLoggerTag, "Saving %u readings to flash", NUMBER_OF_RTC_SENSORS_READING);
+      // Save last 10 redings to flash memory and reset reding counter
       save_buffer_to_storage();
       reading_counter = 0;
     }
 
+    // Release semaphore
     xSemaphoreGive(storage_mutex);
   }
 
@@ -122,10 +127,12 @@ static void save_buffer_to_storage(void) {
 static bool send_available_data_via_bt(void) {
   bool sent_anything = false;
 
+  // Acquire semaphore to prevent shared access
   xSemaphoreTake(storage_mutex, portMAX_DELAY);
 
   stoapi_Init(stocfg_storage_configuration);
 
+  // Read all readings from flash
   size_t data_size = 0;
   void *data = stoapi_ReadFromStorage(&data_size);
 
@@ -142,6 +149,7 @@ static bool send_available_data_via_bt(void) {
 
     ESP_LOGI(kLoggerTag, "Sending %zu stored readings via bluetooth", number_of_readings);
 
+    // Send all readings over BLE
     bleapi_SendSensorsReadings(stored_readings, number_of_readings);
 
     sent_anything = true;
@@ -154,7 +162,7 @@ static bool send_available_data_via_bt(void) {
     }
   }
 
-  if (reading_counter > 0) {
+  if (reading_counter > 0) { // Still readings in ram left?
     ESP_LOGI(kLoggerTag, "Sending %u buffered readings via bluetooth", reading_counter);
 
     bleapi_SendSensorsReadings(sensors_readings, reading_counter);
@@ -165,6 +173,7 @@ static bool send_available_data_via_bt(void) {
 
   stoapi_Deinit();
 
+  // Release semaphore
   xSemaphoreGive(storage_mutex);
 
   return sent_anything;
