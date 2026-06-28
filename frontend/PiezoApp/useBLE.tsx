@@ -1,4 +1,3 @@
-/* eslint-disable no-bitwise */
 import { useCallback, useState } from 'react';
 import { PermissionsAndroid, Platform } from 'react-native';
 import {
@@ -11,12 +10,28 @@ import { PERMISSIONS, requestMultiple } from 'react-native-permissions';
 import DeviceInfo from 'react-native-device-info';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const SENSOR_UUID = '0000fff0-0000-1000-8000-00805f9b34fb';
-const SENSOR_CHARACTERISTIC = '0000fff1-0000-1000-8000-00805f9b34fb';
-
-const bleManager = new BleManager();
-
-type VoidCallback = (result: boolean) => void;
+export type SensorReading = {
+    gnss: {
+        longitude: null | number;
+        latitude: null | number;
+        timestamp: null | Date;
+    };
+    imu: {
+        accelerationX: null | number;
+        accelerationY: null | number;
+        accelerationZ: null | number;
+        gyroscopeX: null | number;
+        gyroscopeY: null | number;
+        gyroscopeZ: null | number;
+    };
+    temperature: {
+        humidity: null | number;
+        temperature: null | number;
+    };
+    current: {
+        milliAmpere: null | number;
+    };
+};
 
 interface SensorData {
     avgSpeed: number | null;
@@ -40,6 +55,8 @@ interface SensorData {
     isRunning: boolean;
 }
 
+type VoidCallback = (result: boolean) => void;
+
 interface BluetoothLowEnergyApi {
     requestPermissions(cb: VoidCallback): Promise<void>;
     scanForPeripherals(): void;
@@ -50,6 +67,7 @@ interface BluetoothLowEnergyApi {
     allDevices: Device[];
     sensorData: SensorData;
     setSensorData: React.Dispatch<React.SetStateAction<SensorData>>;
+    readings: SensorReading[];
     startStopRun: (deviceId: Device) => Promise<void>;
     formatElapsedTime: (ms: number) => string;
     loadLastSensorData: () => Promise<SensorData | null>;
@@ -57,105 +75,214 @@ interface BluetoothLowEnergyApi {
     saveSensorData: (data: SensorData) => Promise<void>;
 }
 
-const INVALID_U32 = 0xffffffff;
+const SENSOR_UUID = '0000fff0-0000-1000-8000-00805f9b34fb';
+const SENSOR_CHARACTERISTIC = '0000fff1-0000-1000-8000-00805f9b34fb';
 
-function base64ToUint8Array(base64: string): Uint8Array {
+const PACKET_LEN = 32;
+const MAX_PACKETS = 6;
+const MAX_PACKETS_LEN = PACKET_LEN * MAX_PACKETS;
+
+const MAX_INT8 = 0x7f;
+const MAX_UINT8 = 0xff;
+const MAX_INT16 = 0x7fff;
+const MAX_UINT32 = 0xffffffff;
+const MAX_UINT64 = 0xffffffffffffffffn;
+
+const GNSS_SCALE = 10000;
+
+const HHN_LAT = 49.12287316886428;
+const HHN_LNG = 9.211840988809245;
+
+const bleManager = new BleManager();
+
+function base64ToDataView(base64: string): DataView {
     const binaryString = atob(base64);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
         bytes[i] = binaryString.charCodeAt(i);
     }
-    return bytes;
+    return new DataView(bytes.buffer);
 }
 
-function parseSensorReading(buffer: ArrayBuffer, offset: number): SensorData | null {
-    const view = new DataView(buffer, offset, 32);
+function parseSensorReadings(dataView: DataView): SensorReading[] {
+    if (
+        dataView.byteLength < PACKET_LEN ||
+        dataView.byteLength % PACKET_LEN !== 0 ||
+        dataView.byteLength > MAX_PACKETS_LEN
+    ) {
+        console.warn(`Invalid BLE packet length: ${dataView.byteLength}`);
+        return [];
+    }
 
-    const longitudeRaw = view.getUint32(0, true);
-    const latitudeRaw = view.getUint32(4, true);
-    const timestamp = view.getBigUint64(8, true);
+    const readings: SensorReading[] = [];
+    const count = dataView.byteLength / PACKET_LEN;
 
-    const longitude = decodeLongitude(longitudeRaw);
-    const latitude = decodeLatitude(latitudeRaw);
+    for (let i = 0; i < count; i++) {
+        readings.push(parseSingleReading(dataView, i * PACKET_LEN));
+    }
 
-    const acc_x = view.getInt8(16);
-    const acc_y = view.getInt8(17);
-    const acc_z = view.getInt8(18);
+    return readings;
+}
 
-    const gyro_x = view.getInt16(20, true);
-    const gyro_y = view.getInt16(22, true);
-    const gyro_z = view.getInt16(24, true);
+function parseSingleReading(dataView: DataView, offset: number): SensorReading {
+    const longitudeRaw = dataView.getUint32(offset + 0, true);
+    const latitudeRaw = dataView.getUint32(offset + 4, true);
+    const timestampRaw = dataView.getBigUint64(offset + 8, true);
 
-    const humidity = view.getUint8(26);
-    const temperature = view.getInt8(27);
+    const accelerationXRaw = dataView.getInt8(offset + 16);
+    const accelerationYRaw = dataView.getInt8(offset + 17);
+    const accelerationZRaw = dataView.getInt8(offset + 18);
 
-    const currentMilli = view.getUint16(28);
-    const current = currentMilli / 1000;
+    const gyroscopeXRaw = dataView.getInt16(offset + 20, true);
+    const gyroscopeYRaw = dataView.getInt16(offset + 22, true);
+    const gyroscopeZRaw = dataView.getInt16(offset + 24, true);
 
-    const lastUpdatedAt = new Date();
+    const humidityRaw = dataView.getUint8(offset + 26);
+    const temperatureRaw = dataView.getInt8(offset + 27);
+    const currentRaw = dataView.getInt16(offset + 28, true);
 
     return {
-        avgSpeed: null,
-        distance: null,
-        startTime: null,
-        elapsedTime: 0,
-        current: current,
-        temperature: temperature === 127 ? null : temperature,
-        humidity: humidity === 255 ? null : humidity,
-        location: { latitude, longitude },
-        imu: { acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z },
-        timestamp: Number(timestamp),
-        lastUpdatedAt,
-        isRunning: false,
+        gnss: {
+            longitude: decodeLongitude(longitudeRaw),
+            latitude: decodeLatitude(latitudeRaw),
+            timestamp: decodeTimestamp(timestampRaw),
+        },
+        imu: {
+            accelerationX: decodeInt8(accelerationXRaw),
+            accelerationY: decodeInt8(accelerationYRaw),
+            accelerationZ: decodeInt8(accelerationZRaw),
+            gyroscopeX: decodeInt16(gyroscopeXRaw),
+            gyroscopeY: decodeInt16(gyroscopeYRaw),
+            gyroscopeZ: decodeInt16(gyroscopeZRaw),
+        },
+        temperature: {
+            humidity: decodeUint8(humidityRaw),
+            temperature: decodeInt8(temperatureRaw),
+        },
+        current: {
+            milliAmpere: decodeInt16(currentRaw),
+        },
     };
 }
 
 function decodeLongitude(raw: number): number | null {
-    if (raw === INVALID_U32) return null;
-    const SIGN_BIT = 0x80000000;
-    const VALUE_MASK = 0x7fffffff;
-    const COORDINATE_SCALE = 1e7;
-
-    const isWest = (raw & SIGN_BIT) !== 0;
-    const magnitude = raw & VALUE_MASK;
-    const value = magnitude / COORDINATE_SCALE;
-    return isWest ? -value : value;
+    if (raw === MAX_UINT32) return null;
+    const isWest = raw >= 0x80000000;
+    const value = isWest ? raw - 0x80000000 : raw;
+    return isWest ? -(value / GNSS_SCALE) : value / GNSS_SCALE;
 }
 
 function decodeLatitude(raw: number): number | null {
-    if (raw === INVALID_U32) return null;
-    const SIGN_BIT = 0x80000000;
-    const VALUE_MASK = 0x7fffffff;
-    const COORDINATE_SCALE = 1e7;
-
-    const isSouth = (raw & SIGN_BIT) !== 0;
-    const magnitude = raw & VALUE_MASK;
-    const value = magnitude / COORDINATE_SCALE;
-    return isSouth ? -value : value;
+    if (raw === MAX_UINT32) return null;
+    const isSouth = raw >= 0x80000000;
+    const value = isSouth ? raw - 0x80000000 : raw;
+    return isSouth ? -(value / GNSS_SCALE) : value / GNSS_SCALE;
 }
 
-function haversineDistance(
-    lat1: number, lon1: number,
-    lat2: number, lon2: number
-): number {
-    const toRad = (x: number) => (x * Math.PI) / 180;
+function decodeTimestamp(raw: bigint): Date | null {
+    if (raw === MAX_UINT64) return null;
+    const ms = Number(raw);
+    return Number.isSafeInteger(ms) ? new Date(ms) : null;
+}
 
-    const R = 6371; // earth radius in km
+function decodeInt8(value: number): number | null {
+    return value === MAX_INT8 ? null : value;
+}
+
+function decodeUint8(value: number): number | null {
+    return value === MAX_UINT8 ? null : value;
+}
+
+function decodeInt16(value: number): number | null {
+    return value === MAX_INT16 ? null : value;
+}
+
+function randomBetween(min: number, max: number): number {
+    return min + Math.random() * (max - min);
+}
+
+function mockLatitude(base: number, maxMeters = 5): number {
+    const offset = randomBetween(-maxMeters, maxMeters) / 111_320;
+    return Math.round((base + offset) * 1_000_000) / 1_000_000;
+}
+
+function mockLongitude(base: number, latitude: number, maxMeters = 5): number {
+    const metersPerDeg = 111_320 * Math.cos(latitude * (Math.PI / 180));
+    if (metersPerDeg === 0) return base;
+    const offset = randomBetween(-maxMeters, maxMeters) / metersPerDeg;
+    return Math.round((base + offset) * 1_000_000) / 1_000_000;
+}
+
+function fillLocation(
+    reading: SensorReading,
+    lastLat: number,
+    lastLng: number,
+): SensorReading {
+    if (reading.gnss.latitude !== null && reading.gnss.longitude !== null) {
+        return reading; // skips filling when real GPS data is available
+    }
+
+    const filledLat = mockLatitude(lastLat);
+    const filledLng = mockLongitude(lastLng, filledLat);
+
+    return {
+        ...reading,
+        gnss: {
+            ...reading.gnss,
+            latitude: filledLat,
+            longitude: filledLng,
+        },
+    };
+}
+
+function readingToSensorDataFields(reading: SensorReading) {
+    return {
+        avgSpeed: null as number | null,
+        current: reading.current.milliAmpere !== null
+            ? reading.current.milliAmpere / 1000   // mA --> A
+            : null,
+        temperature: reading.temperature.temperature,
+        humidity: reading.temperature.humidity,
+        location: {
+            latitude: reading.gnss.latitude,
+            longitude: reading.gnss.longitude,
+        },
+        imu: (
+            reading.imu.accelerationX !== null &&
+            reading.imu.accelerationY !== null &&
+            reading.imu.accelerationZ !== null &&
+            reading.imu.gyroscopeX !== null &&
+            reading.imu.gyroscopeY !== null &&
+            reading.imu.gyroscopeZ !== null
+        ) ? {
+            acc_x: reading.imu.accelerationX,
+            acc_y: reading.imu.accelerationY,
+            acc_z: reading.imu.accelerationZ,
+            gyro_x: reading.imu.gyroscopeX,
+            gyro_y: reading.imu.gyroscopeY,
+            gyro_z: reading.imu.gyroscopeZ,
+        } : null,
+        timestamp: reading.gnss.timestamp?.getTime() ?? null,
+        lastUpdatedAt: new Date(),
+    };
+}
+
+function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const toRad = (x: number) => (x * Math.PI) / 180;
+    const R = 6371;
     const dLat = toRad(lat2 - lat1);
     const dLon = toRad(lon2 - lon1);
     const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 
 function useBLE(): BluetoothLowEnergyApi {
     const [allDevices, setAllDevices] = useState<Device[]>([]);
     const [connectedDevice, setConnectedDevice] = useState<Device | null>(null);
+    const [readings, setReadings] = useState<SensorReading[]>([]);
     const [sensorData, setSensorData] = useState<SensorData>({
         avgSpeed: null,
         distance: null,
@@ -170,7 +297,6 @@ function useBLE(): BluetoothLowEnergyApi {
         lastUpdatedAt: null,
         isRunning: false,
     });
-    const [prevLocation, setPrevLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
     const requestPermissions = useCallback(async (cb: VoidCallback) => {
         if (Platform.OS === 'android') {
@@ -228,7 +354,6 @@ function useBLE(): BluetoothLowEnergyApi {
 
     const connectToDevice = async (device: Device) => {
         try {
-            console.log('connecting');
             const deviceConnection = await bleManager.connectToDevice(device.id, { requestMTU: 224 });
             setConnectedDevice(deviceConnection);
             await deviceConnection.discoverAllServicesAndCharacteristics();
@@ -258,7 +383,10 @@ function useBLE(): BluetoothLowEnergyApi {
         }
     };
 
-    const onConnectedSensorsUpdate = useCallback((error: BleError | null, characteristic: Characteristic | null) => {
+    const onConnectedSensorsUpdate = useCallback((
+        error: BleError | null,
+        characteristic: Characteristic | null,
+    ) => {
         if (error) {
             console.log(error);
             return;
@@ -268,80 +396,73 @@ function useBLE(): BluetoothLowEnergyApi {
             return;
         }
 
-        const bytes = base64ToUint8Array(characteristic.value);
+        const dataView = base64ToDataView(characteristic.value);
 
-        if (bytes.every(b => b === 0)) {
-            return; // skips empty data bytes
-        }
+        const bytes = new Uint8Array(dataView.buffer);
+        if (bytes.every(b => b === 0)) return; // skips empty data bytes
 
-        console.log('data received');
+        const newReadings = parseSensorReadings(dataView);
+        if (newReadings.length === 0) return;
 
-        if (bytes.length < 32 || bytes.length % 32 !== 0) {
-            console.warn('Invalid data length:', bytes.length);
-            return;
-        }
+        // fills missing location with mock data
+        setReadings(prevReadings => {
+            const lastReading = prevReadings.at(-1);
+            const lastLat = lastReading?.gnss.latitude ?? HHN_LAT;
+            const lastLng = lastReading?.gnss.longitude ?? HHN_LNG;
 
-        function toArrayBuffer(buffer: ArrayBuffer | SharedArrayBuffer): ArrayBuffer {
-            if (buffer instanceof ArrayBuffer) {
-                return buffer;
-            }
-            const copy = new ArrayBuffer(buffer.byteLength);
-            new Uint8Array(copy).set(new Uint8Array(buffer));
-            return copy;
-        }
-
-        const buffer = toArrayBuffer(bytes.buffer);
-        const numberOfReadings = bytes.length / 32;
-        const readings: SensorData[] = [];
-
-        for (let i = 0; i < numberOfReadings; i++) {
-            const reading = parseSensorReading(buffer, i * 32);
-            if (reading) {
-                readings.push(reading);
-            }
-        }
-
-        console.log('READINGS', readings);
-        if (readings.length > 0) {
-            const newReading = readings[0];
-
-            const isFaultyReading =
-                newReading.temperature === null ||
-                newReading.humidity === null;
-
-            if (isFaultyReading) {
-                return; // skips faulty readings 
-            }
-
-            setSensorData(prev => {
-                if (prev.isRunning && prev.location && newReading.location && newReading.location.latitude !== null && newReading.location.longitude !== null) {
-                    const prevLat = prev.location.latitude!;
-                    const prevLon = prev.location.longitude!;
-                    const newLat = newReading.location.latitude!;
-                    const newLon = newReading.location.longitude!;
-
-                    const increment = haversineDistance(prevLat, prevLon, newLat, newLon);
-
-                    const updatedDistance = (prev.distance ?? 0) + increment;
-
-                    return {
-                        ...newReading,
-                        distance: updatedDistance,
-                        isRunning: true,
-                        startTime: prev.startTime,
-                        elapsedTime: Date.now() - (prev.startTime ?? Date.now()),
-                    };
-                } else {
-                    return {
-                        ...newReading,
-                        distance: prev.distance,
-                        isRunning: prev.isRunning,
-                        startTime: prev.startTime,
-                        elapsedTime: prev.elapsedTime,
-                    };
-                }
+            const filled = newReadings.map((r, i) => {
+                const baseLat = i === 0 ? lastLat : (newReadings[i - 1].gnss.latitude ?? lastLat);
+                const baseLng = i === 0 ? lastLng : (newReadings[i - 1].gnss.longitude ?? lastLng);
+                return fillLocation(r, baseLat, baseLng);
             });
-        }
+
+            return [...prevReadings, ...filled].slice(-1000); // caps data history at 1000
+        });
+
+        const rawLatest = newReadings[0];
+
+        const isFaultyReading =
+            rawLatest.temperature.temperature === null ||
+            rawLatest.temperature.humidity === null;
+
+        if (isFaultyReading) return;
+
+        setSensorData(prev => {
+            const baseLat = prev.location?.latitude ?? HHN_LAT;
+            const baseLng = prev.location?.longitude ?? HHN_LNG;
+            const latest = fillLocation(rawLatest, baseLat, baseLng);
+
+            const fields = readingToSensorDataFields(latest);
+
+            if (prev.isRunning && prev.location?.latitude != null && prev.location?.longitude != null
+                && fields.location?.latitude != null && fields.location?.longitude != null) {
+
+                const increment = haversineDistance(
+                    prev.location.latitude!,
+                    prev.location.longitude!,
+                    fields.location.latitude,
+                    fields.location.longitude,
+                );
+
+                return {
+                    ...fields,
+                    avgSpeed: prev.avgSpeed,
+                    distance: (prev.distance ?? 0) + increment,
+                    isRunning: true,
+                    startTime: prev.startTime,
+                    elapsedTime: Date.now() - (prev.startTime ?? Date.now()),
+                };
+            }
+
+            return {
+                ...fields,
+                avgSpeed: prev.avgSpeed,
+                distance: prev.distance,
+                isRunning: prev.isRunning,
+                startTime: prev.startTime,
+                elapsedTime: prev.elapsedTime,
+            };
+        });
     }, []);
 
     const getData = useCallback(async (device: Device) => {
@@ -458,6 +579,7 @@ function useBLE(): BluetoothLowEnergyApi {
         disconnectFromDevice,
         sensorData,
         setSensorData,
+        readings,
         startStopRun,
         formatElapsedTime,
         loadLastSensorData,
