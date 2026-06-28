@@ -1,8 +1,8 @@
 import type { SensorReading } from "../types/readings";
 import { fillMissingSensorReadings } from "./fillMissingSensorReadings";
 
-export const HHN_LAT = 49.12212298190261;
-export const HHN_LNG = 9.21056313954808;
+export const HHN_LAT = 49.12287316886428;
+export const HHN_LNG = 9.211840988809245;
 
 let fakeTimestampMs = Date.now();
 
