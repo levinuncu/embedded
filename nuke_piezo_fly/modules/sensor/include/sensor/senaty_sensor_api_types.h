@@ -41,19 +41,19 @@ typedef struct {
    * 
    * A value of INT8_MAX indicates that the acceleration could not be read.
    */
-  int8_t acceleration_x;
+  uint8_t acceleration_x;
   /**
    * @brief Acceleration of Y axis [m/s²].
    * 
    * A value of INT8_MAX indicates that the acceleration could not be read.
    */
-  int8_t acceleration_y;
+  uint8_t acceleration_y;
   /**
    * @brief Acceleration of Z axis [m/s²].
    * 
    * A value of INT8_MAX indicates that the acceleration could not be read.
    */
-  int8_t acceleration_z;
+  uint8_t acceleration_z;
   /**
    * @brief Rotation speed of X axis [°/s].
    * 

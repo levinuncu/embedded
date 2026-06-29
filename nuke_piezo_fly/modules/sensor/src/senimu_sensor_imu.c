@@ -6,6 +6,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <math.h>
 
 #include "driver/i2c_master.h"
 #include "driver/i2c_types.h"
@@ -149,9 +150,9 @@ senaty_ImuSensorReading senimu_ReadData(void) {
 
   // Convert the MPU6050 driver values to the project-specific reading format.
   senaty_ImuSensorReading reading = {
-    .acceleration_x = (int8_t)acceleration.acce_x,
-		.acceleration_y = (int8_t)acceleration.acce_y,
-		.acceleration_z = (int8_t)acceleration.acce_z,
+    .acceleration_x = (int16_t)roundf(acceleration.acce_x * 9.80665f),
+    .acceleration_y = (int16_t)roundf(acceleration.acce_y * 9.80665f),
+    .acceleration_z = (int16_t)roundf(acceleration.acce_z * 9.80665f),
 		.gyroscope_x = (int16_t)gyroscope.gyro_x,
 		.gyroscope_y = (int16_t)gyroscope.gyro_y,
 		.gyroscope_z = (int16_t)gyroscope.gyro_z,

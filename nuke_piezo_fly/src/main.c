@@ -20,7 +20,7 @@
 #include "storage/stoapi_storage_api.h"
 
 #define NUMBER_OF_RTC_SENSORS_READING (10U) ///< Maximum number of sensors reading saved in RTC memory.
-#define SAMPLING_INTERVAL_MS (5000U)
+#define SAMPLING_INTERVAL_MS (1000U)
 #define BT_POLL_INTERVAL_MS (500U)
 
 /**
