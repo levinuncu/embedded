@@ -1,17 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View, Text, Alert, TouchableOpacity, Dimensions } from 'react-native';
+import { StyleSheet, View, Text, Alert, TouchableOpacity, Dimensions, ActivityIndicator } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import DeviceModal from './DeviceConnectionModal';
 import useBLE from './useBLE';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import SensorChart from './SensorChart';
 
+// gets screen witdh to then calculate the maps width
 const screenWidth = Dimensions.get('window').width;
 const mapWidth = screenWidth * 0.9;
-
-function showAlert(message: string | undefined) {
-  Alert.alert('Connection', message)
-}
 
 const App = () => {
   const {
@@ -30,39 +27,47 @@ const App = () => {
     loadLastConnectedDevice,
     saveSensorData,
   } = useBLE();
-
+  const [isReconnecting, setIsReconnecting] = useState<boolean | null>(null);
+  const [hasSavedDevice, setHasSavedDevice] = useState(false);
   const hasInitialized = useRef(false);
 
+  // initializes
   useEffect(() => {
     const initialize = async () => {
       const savedSensorData = await loadLastSensorData();
+      // gets prev data and loads it onto the UI
       if (savedSensorData) {
         setSensorData(prev => ({
           ...prev,
-          distance: savedSensorData.distance,
-          elapsedTime: savedSensorData.elapsedTime,
-          avgSpeed: savedSensorData.avgSpeed,
-          temperature: savedSensorData.temperature,
-          humidity: savedSensorData.humidity,
-          current: savedSensorData.current,
-          location: savedSensorData.location,
-          lastUpdatedAt: savedSensorData.lastUpdatedAt,
+          ...savedSensorData,
+          isRunning: false,
+          startTime: null,
         }));
       }
+
+      // gets prev device and tries reconnecting it
       const savedDevice = await loadLastConnectedDevice();
       if (savedDevice?.id) {
-        reconnectToDevice(savedDevice.id);
+        setHasSavedDevice(true);
+        setIsReconnecting(true);
+        await reconnectToDevice(savedDevice.id);
+        setIsReconnecting(false);
+      } else {
+        setIsReconnecting(false);
       }
+
       hasInitialized.current = true;
     };
     initialize();
   }, []);
 
+  // once the initialization is over, the data should load in
   useEffect(() => {
     if (!hasInitialized.current) return;
     saveSensorData(sensorData);
   }, [sensorData]);
 
+  // scans for devices after permissions have been granted
   const scanForDevices = () => {
     requestPermissions((isGranted: any) => {
       if (isGranted) {
@@ -71,6 +76,7 @@ const App = () => {
     });
   };
 
+  // increments the elapsed time in moving time continously
   useEffect(() => {
     let interval: ReturnType<typeof setTimeout> | null = null;
     if (sensorData.isRunning && sensorData.startTime) {
@@ -90,16 +96,17 @@ const App = () => {
     };
   }, [sensorData.isRunning, sensorData.startTime]);
 
+  // handles the modal for scanning devices
   const [isModalVisible, setIsModalVisible] = useState<boolean>(false);
   const hideModal = async () => {
     setIsModalVisible(false);
   }
-
   const openModal = async () => {
     scanForDevices();
     setIsModalVisible(true);
   }
 
+  // saves the HHN location to set the region on the map
   const [region, setRegion] = useState({
     // HHN location
     latitude: 49.122044,
@@ -109,6 +116,7 @@ const App = () => {
     longitudeDelta: 0.01,
   });
 
+  // checks for actual location data and returns that
   useEffect(() => {
     if (
       sensorData.location &&
@@ -124,12 +132,23 @@ const App = () => {
     }
   }, [sensorData.location]);
 
+  // gets the lastUpdatedAt parameter for the sensor data and saves it in a const to reduce code
   const last = sensorData.lastUpdatedAt instanceof Date
     ? sensorData.lastUpdatedAt
     : sensorData.lastUpdatedAt
       ? new Date(sensorData.lastUpdatedAt)
       : null;
 
+  // shows a loading spinner for when hasn't been initialized yet
+  if (isReconnecting === null) {
+    return (
+      <SafeAreaProvider style={styles.provider}>
+        <ActivityIndicator style={styles.centered} size="large" color="rgb(140,190,7)" />
+      </SafeAreaProvider>
+    );
+  }
+
+  // returns actual UI elements
   return (
     <SafeAreaProvider style={styles.provider}>
       <Text style={styles.headerTitle}>
@@ -137,26 +156,31 @@ const App = () => {
       </Text>
       <View style={styles.container}>
         <View>
-          {connectedDevice ? (
+          {/* texts changing depending on the connection state */}
+          {isReconnecting ? (
+            <Text style={styles.textAbove}>Reconnecting to sensor...</Text>
+          ) : connectedDevice ? (
             <Text style={styles.textAbove}>Your connected Device is: {connectedDevice.name}</Text>
           ) : (
-            <Text style={styles.textAbove}>Connect to a sensor</Text>
+            <Text style={styles.textAbove}>
+              {hasSavedDevice ? 'Could not reconnect — connect manually' : 'Connect to a sensor'}
+            </Text>
           )}
         </View>
-        <TouchableOpacity style={styles.connectButton}
-          onPress={connectedDevice ? disconnectFromDevice : openModal}>
-          <Text style={styles.buttonText}>{connectedDevice ? 'Disconnect' : 'Connect'}</Text>
+        <TouchableOpacity
+          style={[styles.connectButton, isReconnecting ? styles.connectButtonDisabled : null]}
+          disabled={!!isReconnecting}
+          onPress={connectedDevice ? disconnectFromDevice : openModal}
+        >
+          <Text style={styles.buttonText}>
+            {isReconnecting ? '...' : connectedDevice ? 'Disconnect' : 'Connect'}
+          </Text>
         </TouchableOpacity>
       </View>
       <View style={styles.dataContainer}>
-        {/* {connectedDevice ? ( */}
         <View>
           <View style={styles.container}>
             <Text style={styles.text}>Location data: </Text>
-            {connectedDevice ? (<Text style={styles.lowOpacityText}>{sensorData?.location?.latitude} {sensorData?.location?.longitude}</Text>
-            ) : (
-              <Text style={styles.lowOpacityText}>49.122044, 9.211371</Text>
-            )}
           </View>
           <View style={styles.flexContainer}>
             <MapView
@@ -165,6 +189,7 @@ const App = () => {
               region={region}
               onRegionChangeComplete={setRegion}
             >
+              {/* checks for location data & displays it */}
               {sensorData.location &&
                 sensorData.location.latitude !== null &&
                 sensorData.location.longitude !== null && (
@@ -181,13 +206,9 @@ const App = () => {
           <View style={styles.container}>
             <View style={styles.container}>
               <Text style={styles.text}>Moving time: </Text>
-              {connectedDevice ? (
-                <Text style={styles.text}>
-                  {connectedDevice ? formatElapsedTime(sensorData.elapsedTime) : '00:00'}
-                </Text>
-              ) : (
-                <Text style={styles.text}>23:07</Text>
-              )}
+              <Text style={styles.text}>
+                {connectedDevice ? formatElapsedTime(sensorData.elapsedTime) : '00:00'}
+              </Text>
             </View>
             {connectedDevice ? (
               <View style={styles.container}>
@@ -202,74 +223,47 @@ const App = () => {
           <View style={styles.container}>
             <View style={styles.container}>
               <Text style={styles.text}>Distance: </Text>
-              {connectedDevice ? (
-                <Text style={styles.text}>
-                  {sensorData.isRunning
-                    ? (sensorData.distance !== null ? sensorData.distance.toFixed(2) : '--') + ' km'
-                    : (sensorData.distance !== null ? sensorData.distance.toFixed(2) : '0') + ' km'}
-                </Text>
-              ) : (
-                <Text style={styles.text}>9 km</Text>
-              )}
+              <Text style={styles.text}>
+                {sensorData.isRunning
+                  ? (sensorData.distance !== null ? sensorData.distance.toFixed(2) : '--') + ' km'
+                  : (sensorData.distance !== null ? sensorData.distance.toFixed(2) : '0') + ' km'}
+              </Text>
             </View>
             <View style={styles.container}>
               <Text style={styles.text}>Average speed: </Text>
-              {connectedDevice ? (
-                <Text style={styles.text}>
-                  {sensorData.isRunning || sensorData.avgSpeed === null
-                    ? '--'
-                    : `${formatElapsedTime(sensorData.avgSpeed)}/km`}
-                </Text>
-              ) : (
-                <Text style={styles.text}>5:78/km</Text>
-              )}
+              <Text style={styles.text}>
+                {sensorData.isRunning || sensorData.avgSpeed === null
+                  ? '--'
+                  : `${formatElapsedTime(sensorData.avgSpeed)}/km`}
+              </Text>
             </View>
 
           </View>
           <View style={styles.container}>
             <View style={styles.container}>
               <Text style={styles.text}>Temperature: </Text>
-              {connectedDevice ? (
-                <Text style={styles.text}>{sensorData.temperature ?? '--'}°C</Text>
-              ) : (
-                <Text style={styles.text}>29°</Text>
-              )}
+              <Text style={styles.text}>{sensorData.temperature ?? '--'}°C</Text>
             </View>
             <View style={styles.container}>
               <Text style={styles.text}>Humidity: </Text>
-              {connectedDevice ? (
-                <Text style={styles.text}>{sensorData.humidity ?? '--'}%</Text>
-              ) : (
-                <Text style={styles.text}>20%</Text>
-              )}
+              <Text style={styles.text}>{sensorData.humidity ?? '--'}%</Text>
             </View>
             <View style={styles.container}>
               <Text style={styles.text}>Current: </Text>
-              {connectedDevice ? (
-                <Text style={styles.text}>{sensorData.current ?? '--'}A</Text>
-              ) : (
-                <Text style={styles.text}>3.3A</Text>
-              )}
+              <Text style={styles.text}>{sensorData.current ?? '--'}A</Text>
             </View>
           </View>
           <View style={styles.container}>
             <View style={styles.container}>
               <Text style={styles.text}>Accaleration stats: </Text>
-              {connectedDevice ? (
-                <Text style={styles.text}>({sensorData.imu?.acc_x ?? '--'}, {sensorData.imu?.acc_y ?? '--'}, {sensorData.imu?.acc_z ?? '--'})</Text>
-              ) : (
-                <Text style={styles.text}>(1, 3, 4)</Text>
-              )}
+              <Text style={styles.text}>({sensorData.imu?.acc_x ?? '--'}, {sensorData.imu?.acc_y ?? '--'}, {sensorData.imu?.acc_z ?? '--'})</Text>
             </View>
             <View style={styles.container}>
               <Text style={styles.text}>Gyroscope stats: </Text>
-              {connectedDevice ? (
-                <Text style={styles.text}>({sensorData.imu?.gyro_x ?? '--'}, {sensorData.imu?.gyro_y ?? '--'}, {sensorData.imu?.gyro_z ?? '--'})</Text>
-              ) : (
-                <Text style={styles.text}>(0, -1, -1)</Text>
-              )}
+              <Text style={styles.text}>({sensorData.imu?.gyro_x ?? '--'}, {sensorData.imu?.gyro_y ?? '--'}, {sensorData.imu?.gyro_z ?? '--'})</Text>
             </View>
           </View>
+          {/* the sensor charts */}
           <SensorChart
             temperature={sensorData.temperature}
             humidity={sensorData.humidity}
@@ -278,16 +272,18 @@ const App = () => {
             isConnected={!!connectedDevice}
           />
           <View style={styles.container}>
+            {/* retrieves the last time the UI has been updated */}
             <Text style={styles.lowOpacityText}>Last updated: </Text>
-            {connectedDevice && last ? (
+            {last ? (
               <Text style={styles.lowOpacityText}>
                 {last.getHours().toString().padStart(2, '0')}:
                 {last.getMinutes().toString().padStart(2, '0')} - {last.getDate()}.
                 {last.getMonth() + 1}.{last.getFullYear()}
-              </Text> // months usually start with 0 so add +1 for human comprehension
+              </Text>
             ) : (
-              <Text style={styles.lowOpacityText}>13:23 - 19.06.2026</Text>
+              <Text style={styles.lowOpacityText}>--</Text>
             )}
+            {/* enables a reload button if a device is connected */}
             {connectedDevice ? (
               <TouchableOpacity
                 style={styles.reconnectButton}
@@ -300,11 +296,9 @@ const App = () => {
             )}
           </View>
         </View>
-        {/* ) : (
-          <Text style={styles.lowOpacityText}>Connect to a sensor to see data</Text>
-        )} */}
       </View>
 
+      {/* the modal where the available devices are listed */}
       <DeviceModal
         closeModal={hideModal}
         visible={isModalVisible}
@@ -314,6 +308,7 @@ const App = () => {
   );
 }
 
+// css stylesheet for UI
 const styles = StyleSheet.create({
   provider: {
     flex: 1,
@@ -377,6 +372,9 @@ const styles = StyleSheet.create({
     paddingLeft: 20,
     paddingRight: 20,
   },
+  connectButtonDisabled: {
+    opacity: 0.5,
+  },
   reconnectButton: {
     backgroundColor: 'rgb(140,190,7)',
     justifyContent: 'center',
@@ -388,6 +386,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingLeft: 20,
     paddingRight: 20,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

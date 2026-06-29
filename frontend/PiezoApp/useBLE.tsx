@@ -95,6 +95,7 @@ const HHN_LNG = 9.211840988809245;
 
 const bleManager = new BleManager();
 
+// this function converts the base64 string that we get from the connection to a DataView object
 function base64ToDataView(base64: string): DataView {
     const binaryString = atob(base64);
     const bytes = new Uint8Array(binaryString.length);
@@ -104,6 +105,7 @@ function base64ToDataView(base64: string): DataView {
     return new DataView(bytes.buffer);
 }
 
+// parses the singular readings into an array
 function parseSensorReadings(dataView: DataView): SensorReading[] {
     if (
         dataView.byteLength < PACKET_LEN ||
@@ -118,12 +120,13 @@ function parseSensorReadings(dataView: DataView): SensorReading[] {
     const count = dataView.byteLength / PACKET_LEN;
 
     for (let i = 0; i < count; i++) {
-        readings.push(parseSingleReading(dataView, i * PACKET_LEN));
+        readings.push(parseSingleReading(dataView, i * PACKET_LEN)); // offset makes sure that packets are divided in their 32 byte sizes
     }
 
     return readings;
 }
 
+// parses a singular reading 
 function parseSingleReading(dataView: DataView, offset: number): SensorReading {
     const longitudeRaw = dataView.getUint32(offset + 0, true);
     const latitudeRaw = dataView.getUint32(offset + 4, true);
@@ -165,6 +168,7 @@ function parseSingleReading(dataView: DataView, offset: number): SensorReading {
     };
 }
 
+// decode functions check for no data values and filter them out
 function decodeLongitude(raw: number): number | null {
     if (raw === MAX_UINT32) return null;
     const isWest = raw >= 0x80000000;
@@ -201,11 +205,13 @@ function randomBetween(min: number, max: number): number {
     return min + Math.random() * (max - min);
 }
 
+// mocks latitude in the range of HHN
 function mockLatitude(base: number, maxMeters = 5): number {
     const offset = randomBetween(-maxMeters, maxMeters) / 111_320;
     return Math.round((base + offset) * 1_000_000) / 1_000_000;
 }
 
+// mocks longitude in the range of HHN
 function mockLongitude(base: number, latitude: number, maxMeters = 5): number {
     const metersPerDeg = 111_320 * Math.cos(latitude * (Math.PI / 180));
     if (metersPerDeg === 0) return base;
@@ -222,6 +228,7 @@ function fillLocation(
         return reading; // skips filling when real GPS data is available
     }
 
+    // fills location data with mock data (surrounding HHN)
     const filledLat = mockLatitude(lastLat);
     const filledLng = mockLongitude(lastLng, filledLat);
 
@@ -235,6 +242,7 @@ function fillLocation(
     };
 }
 
+// parses raw sensor readings into sensor data 
 function readingToSensorDataFields(reading: SensorReading) {
     return {
         avgSpeed: null as number | null,
@@ -254,7 +262,7 @@ function readingToSensorDataFields(reading: SensorReading) {
             reading.imu.gyroscopeX !== null &&
             reading.imu.gyroscopeY !== null &&
             reading.imu.gyroscopeZ !== null
-        ) ? {
+        ) ? { // only if every imu value is there, it should display it
             acc_x: reading.imu.accelerationX,
             acc_y: reading.imu.accelerationY,
             acc_z: reading.imu.accelerationZ,
@@ -267,6 +275,8 @@ function readingToSensorDataFields(reading: SensorReading) {
     };
 }
 
+
+// calculates the distance between two locations
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
     const toRad = (x: number) => (x * Math.PI) / 180;
     const R = 6371;
@@ -298,6 +308,7 @@ function useBLE(): BluetoothLowEnergyApi {
         isRunning: false,
     });
 
+    // requests bluetooth permissions
     const requestPermissions = useCallback(async (cb: VoidCallback) => {
         if (Platform.OS === 'android') {
             const apiLevel = await DeviceInfo.getApiLevel();
@@ -333,9 +344,11 @@ function useBLE(): BluetoothLowEnergyApi {
         }
     }, []);
 
+    // checks for duplicate devices
     const isDuplicateDevice = useCallback((devices: Device[], nextDevice: Device) =>
         devices.findIndex(device => nextDevice.id === device.id) > -1, []);
 
+    // scans for devices
     const scanForPeripherals = useCallback(() => {
         bleManager.startDeviceScan(null, null, (error, device) => {
             if (error) {
@@ -354,17 +367,19 @@ function useBLE(): BluetoothLowEnergyApi {
 
     const connectToDevice = async (device: Device) => {
         try {
+            // connects to a bluetooth device with a MTU packet size of 224 bytes for multiple readings
             const deviceConnection = await bleManager.connectToDevice(device.id, { requestMTU: 224 });
             setConnectedDevice(deviceConnection);
-            await deviceConnection.discoverAllServicesAndCharacteristics();
+            await deviceConnection.discoverAllServicesAndCharacteristics(); // looks for the services and characteristics of the device
             bleManager.stopDeviceScan();
-            getData(deviceConnection);
-            saveDeviceInfo(device);
+            getData(deviceConnection); // retrieves the data
+            saveDeviceInfo(device); // saves device for reconnect purposes
         } catch (e) {
             console.log('FAILED TO CONNECT', e);
         }
     };
 
+    // reconnects to a previoulsy connected device (a.k.a. reloads data by reconnecting and retrieving data)
     const reconnectToDevice = async (deviceId: string) => {
         try {
             const device = allDevices.find(d => d.id === deviceId);
@@ -383,6 +398,7 @@ function useBLE(): BluetoothLowEnergyApi {
         }
     };
 
+    // key part
     const onConnectedSensorsUpdate = useCallback((
         error: BleError | null,
         characteristic: Characteristic | null,
@@ -396,13 +412,16 @@ function useBLE(): BluetoothLowEnergyApi {
             return;
         }
 
+        // converts base 64 string to data
         const dataView = base64ToDataView(characteristic.value);
 
+        // gets bytes of said data for an empty check
         const bytes = new Uint8Array(dataView.buffer);
         if (bytes.every(b => b === 0)) return; // skips empty data bytes
 
+        // parses the data
         const newReadings = parseSensorReadings(dataView);
-        if (newReadings.length === 0) return;
+        if (newReadings.length === 0) return; // skips if there are no new readings
 
         // fills missing location with mock data
         setReadings(prevReadings => {
@@ -424,9 +443,9 @@ function useBLE(): BluetoothLowEnergyApi {
         const isFaultyReading =
             rawLatest.temperature.temperature === null ||
             rawLatest.temperature.humidity === null;
+        if (isFaultyReading) return; // skips if readings are faulty
 
-        if (isFaultyReading) return;
-
+        // fills the sensor data with new readings
         setSensorData(prev => {
             const baseLat = prev.location?.latitude ?? HHN_LAT;
             const baseLng = prev.location?.longitude ?? HHN_LNG;
@@ -437,6 +456,7 @@ function useBLE(): BluetoothLowEnergyApi {
             if (prev.isRunning && prev.location?.latitude != null && prev.location?.longitude != null
                 && fields.location?.latitude != null && fields.location?.longitude != null) {
 
+                // tracks distance
                 const increment = haversineDistance(
                     prev.location.latitude!,
                     prev.location.longitude!,
@@ -465,6 +485,7 @@ function useBLE(): BluetoothLowEnergyApi {
         });
     }, []);
 
+    // gets data from the service and charachertistic constants
     const getData = useCallback(async (device: Device) => {
         if (device) {
             device.monitorCharacteristicForService(
@@ -477,6 +498,7 @@ function useBLE(): BluetoothLowEnergyApi {
         }
     }, [onConnectedSensorsUpdate]);
 
+    // disconnects the current connected device
     const disconnectFromDevice = useCallback(() => {
         if (connectedDevice) {
             bleManager.cancelDeviceConnection(connectedDevice.id);
@@ -485,8 +507,10 @@ function useBLE(): BluetoothLowEnergyApi {
         }
     }, [connectedDevice]);
 
+    // manages the start & stop button
     const startStopRun = async (device: Device) => {
         setSensorData(prev => {
+            // if it wasn't running before, it now gets set to running and resets all values that are associated with the run data
             if (!prev.isRunning) {
                 return {
                     ...prev,
@@ -496,7 +520,9 @@ function useBLE(): BluetoothLowEnergyApi {
                     distance: 0,
                     avgSpeed: null,
                 };
-            } else {
+            }
+            // if it was running before, it should stop the run and save the data collected up to that
+            else {
                 const elapsedTime = Date.now() - (prev.startTime ?? Date.now());
                 let avgSpeedValue: number | null = null;
 
@@ -515,6 +541,7 @@ function useBLE(): BluetoothLowEnergyApi {
         });
     };
 
+    // formats time to a readable format of m:ss 
     function formatElapsedTime(ms: number): string {
         const totalSeconds = Math.floor(ms / 1000);
         const minutes = Math.floor(totalSeconds / 60);
@@ -523,8 +550,9 @@ function useBLE(): BluetoothLowEnergyApi {
     }
 
     const saveSensorData = async (data: SensorData) => {
-        if (data.lastUpdatedAt === null && data.temperature === null) return;
+        if (data.lastUpdatedAt === null && data.temperature === null) return; // if no data, no need to save
         try {
+            // saves data as in a json
             await AsyncStorage.setItem('@lastSensorData', JSON.stringify(data));
         } catch (e) {
             console.error('Failed to save sensor data', e);
@@ -533,6 +561,7 @@ function useBLE(): BluetoothLowEnergyApi {
 
     const saveDeviceInfo = async (device: Device) => {
         try {
+            // saves id and name of the last connected device
             await AsyncStorage.setItem('@lastConnectedDevice', JSON.stringify({
                 id: device.id,
                 name: device.name,
@@ -544,11 +573,12 @@ function useBLE(): BluetoothLowEnergyApi {
 
     const loadLastSensorData = async () => {
         try {
+            // reads last sensor data and returns it
             const jsonValue = await AsyncStorage.getItem('@lastSensorData');
             if (jsonValue != null) {
                 const data = JSON.parse(jsonValue);
                 if (data.lastUpdatedAt) {
-                    data.lastUpdatedAt = new Date(data.lastUpdatedAt);
+                    data.lastUpdatedAt = new Date(data.lastUpdatedAt); // needs to be parsed back into a Date format after being stringified into the json
                 }
                 return data;
             }
@@ -561,6 +591,7 @@ function useBLE(): BluetoothLowEnergyApi {
 
     const loadLastConnectedDevice = async () => {
         try {
+            // reads last device info (id to be more specific) and returns it
             const jsonValue = await AsyncStorage.getItem('@lastConnectedDevice');
             return jsonValue != null ? JSON.parse(jsonValue) : null;
         } catch (e) {

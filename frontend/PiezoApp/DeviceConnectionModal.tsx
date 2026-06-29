@@ -10,12 +10,14 @@ import {
 } from 'react-native';
 import { Device } from 'react-native-ble-plx';
 
+// declares type of a single list item
 type DeviceModalListItemProps = {
     item: ListRenderItemInfo<Device>;
     connectToPeripheral: (device: Device) => void;
     closeModal: () => void;
 };
 
+// declares type of the whole list
 type DeviceModalProps = {
     devices: Device[];
     visible: boolean;
@@ -23,14 +25,17 @@ type DeviceModalProps = {
     closeModal: () => void;
 };
 
+// returns a singular item for the list
 const DeviceModalListItem: FC<DeviceModalListItemProps> = props => {
     const { item, connectToPeripheral, closeModal } = props;
 
+    // connects to clicked device and closes modal
     const connectAndCloseModal = useCallback(() => {
         connectToPeripheral(item.item);
         closeModal();
     }, [closeModal, connectToPeripheral, item.item]);
 
+    // returns a singular button for a singular device with the device name on it
     return (
         <TouchableOpacity
             onPress={connectAndCloseModal}
@@ -43,6 +48,7 @@ const DeviceModalListItem: FC<DeviceModalListItemProps> = props => {
 const DeviceModal: FC<DeviceModalProps> = props => {
     const { devices, visible, connectToPeripheral, closeModal } = props;
 
+    // renders devices to be a list item
     const renderDeviceModalListItem = useCallback(
         (item: ListRenderItemInfo<Device>) => {
             return (
@@ -56,6 +62,7 @@ const DeviceModal: FC<DeviceModalProps> = props => {
         [closeModal, connectToPeripheral],
     );
 
+    // returns a modal that lists up all of the available devices
     return (
         <Modal
             style={styles.modalContainer}
@@ -63,13 +70,16 @@ const DeviceModal: FC<DeviceModalProps> = props => {
             transparent={false}
             visible={visible}>
             <View style={styles.modalTitle}>
+                {/* button to exit the modal */}
                 <TouchableOpacity style={styles.closeButton}
                     onPress={closeModal}>
                     <Text style={styles.buttonText}>x</Text>
                 </TouchableOpacity>
+                {/* title of modal */}
                 <Text style={styles.modalTitleText}>
                     Tap on a device to connect
                 </Text>
+                {/* list with items, a.k.a. devices to connect to */}
                 <FlatList
                     contentContainerStyle={styles.modalFlatlistContiner}
                     data={devices}
@@ -80,6 +90,7 @@ const DeviceModal: FC<DeviceModalProps> = props => {
     );
 };
 
+// css stylesheet for UI 
 const styles = StyleSheet.create({
     modalContainer: {
         flex: 1,
