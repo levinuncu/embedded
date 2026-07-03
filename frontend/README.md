@@ -1,0 +1,40 @@
+# PiezoFly - PiezoApp
+
+## How to start
+To run the app, move to the `PiezoApp` directory and run the command `npm start`. To see the app on your phone, scan the QR code which will appear in the Terminal.
+
+For Android:
+1. Download Expo Go (found in Play Store)
+2. Scan QR code through app
+
+For iOS:
+1. Download Expo Go (found in App Store)
+2. Scan through normal Camera App (which will redirect you to the app)
+
+## Helpful commands
+* to install ble library for react native: `npx expo install react-native-ble-plx`
+* to install API stuff needed for the connection to the phones: `npx expo install expo-device react-native-base64`
+* to install the eas cli: `npx npm install eas-cli`
+* to install dev client locally: `npx expo install expo-dev-client`
+* to prebuild expo: `npx expo prebuild`
+* to clean prebuild expo: `npx expo prebuild --clean`
+* to run expo project: `npx expo start`
+* to build standalone app for android: `npx eas build --profile development --platform android`
+* to build standalone app for ios: `npx eas build --profile development --platform ios`
+* to run on android simulator: `npx expo run:android`
+* to run on ios simulator: `npx expo run:ios`
+* to clear cache: `npm cache clean --force`
+
+## For the prebuild command
+Go to the following file path `embedded/frontend/PiezoApp/`
+* for android continue the path with: `android/app/src/main/AndroidManifest.xml` and add the following piece of code in the file:
+  `<uses-feature android:name="android.permission.BLUETOOTH_CONNECT"/>`
+  `<uses-feature android:name="android.hardware.bluetooth_le" android:required="true"/>`
+  * to enable the map, add this line in the `<application>` element -- if it hasn't been added automatically with the prebuild command:
+    `<meta-data android.name="com.google.android.geo.API_KEY" android:value="AIzaSyD_5NSjCS1NRtGPfOeUZPA-jaZqe91uLl0" />`
+* for ios continue the path with: `ios/PiezoApp/Info.plist` and add the following piece of code into the file:
+  `<key>NSBluetoothPeripheralUsageDescription</key>`
+	`<string>Allow $(PRODUCT_NAME) to connect to bluetooth devices</string>`
+
+## Troubleshooting
+After a few commands, running `npm i` is recommended.
