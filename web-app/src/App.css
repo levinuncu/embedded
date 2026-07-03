@@ -1,0 +1,275 @@
+.dashboard {
+  min-height: 100vh;
+  padding: 24px;
+  background: #0f172a;
+  color: #e5e7eb;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.dashboard-title h1 {
+  margin: 0;
+  font-size: 32px;
+}
+
+.dashboard-title p {
+  margin: 6px 0 0;
+  color: #94a3b8;
+}
+
+.header-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.ble-status-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 280px;
+  padding: 12px 14px;
+  background: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 14px;
+}
+
+.ble-status-card strong {
+  display: block;
+  font-size: 14px;
+}
+
+.ble-status-card span {
+  display: block;
+  margin-top: 2px;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.ble-status-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #64748b;
+  flex: 0 0 auto;
+}
+
+.ble-status-connected,
+.ble-status-done {
+  background: #22c55e;
+}
+
+.ble-status-receiving,
+.ble-status-connecting,
+.ble-status-subscribing,
+.ble-status-selecting,
+.ble-status-disconnecting {
+  background: #f59e0b;
+}
+
+.ble-status-error,
+.ble-status-unsupported {
+  background: #ef4444;
+}
+
+.ble-stats {
+  display: flex;
+  gap: 10px;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.ble-stats span {
+  background: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 999px;
+  padding: 5px 10px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+button {
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: #2563eb;
+  color: white;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.button-secondary {
+  background: #334155;
+}
+
+.button-secondary:hover:not(:disabled) {
+  background: #475569;
+}
+
+.ble-error {
+  max-width: 420px;
+  padding: 10px 12px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fecaca;
+  border-radius: 12px;
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .dashboard-header {
+    flex-direction: column;
+  }
+
+  .header-controls {
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .ble-status-card {
+    min-width: 0;
+  }
+
+  .actions {
+    justify-content: flex-start;
+  }
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.stat-card,
+.chart-card,
+.latest-card {
+  background: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 18px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+}
+
+.stat-card {
+  padding: 18px;
+}
+
+.stat-title {
+  color: #94a3b8;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.stat-value {
+  font-size: 34px;
+  font-weight: 800;
+}
+
+.stat-value span {
+  font-size: 16px;
+  color: #94a3b8;
+  margin-left: 4px;
+}
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.chart-card {
+  min-width: 0;
+  background: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 18px;
+  padding: 18px;
+}
+
+.chart-card h2,
+.latest-card h2 {
+  margin: 0 0 16px;
+  font-size: 18px;
+}
+
+.chart-wrapper {
+  width: 100%;
+  height: 280px;
+  min-width: 0;
+}
+
+.latest-card {
+  margin-top: 16px;
+  padding: 18px;
+}
+
+.latest-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.latest-grid p {
+  color: #cbd5e1;
+  line-height: 1.7;
+}
+
+@media (max-width: 900px) {
+  .stat-grid,
+  .chart-grid,
+  .latest-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.map-card {
+  background: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 18px;
+  padding: 18px;
+  margin-bottom: 16px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+}
+
+.map-card h2 {
+  margin: 0 0 16px;
+  font-size: 18px;
+}
+
+.map-wrapper {
+  height: 420px;
+  overflow: hidden;
+  border-radius: 14px;
+}
+
+.sensor-map {
+  width: 100%;
+  height: 100%;
+}
